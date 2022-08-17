@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Callable
 
 import numpy as np
-import scipy.sparse
-import scipy.sparse.linalg
+from scipy import sparse
+from scipy.sparse import linalg
 from scipy.sparse.linalg.eigen.arpack.arpack \
     import ArpackNoConvergence as _ArpackNoConvergence
 import networkx as nx
@@ -357,7 +357,7 @@ class _add_network_update_fct():
         density = self._n_avg_deg/self._r_dim
 
         # sparse scipy matrix. It might have non-zero diagonal elements, the random values are uniformly distributed between 0 and 1.
-        self._network = scipy.sparse.random(self._r_dim, self._r_dim, density=density).toarray()
+        self._network = sparse.random(self._r_dim, self._r_dim, density=density).toarray()
         self._network = 2*self._network - 1
 
         self._scale_network()
@@ -458,9 +458,9 @@ class _add_network_update_fct():
         Specification done via protected members
 
         """
-        self._network = scipy.sparse.csr_matrix(self._network)
+        self._network = sparse.csr_matrix(self._network)
         try:
-            eigenvals = scipy.sparse.linalg.eigs(
+            eigenvals = linalg.eigs(
                 self._network, k=1, v0=np.ones(self._r_dim),
                 maxiter=1e3 * self._r_dim)[0]
         except _ArpackNoConvergence:
