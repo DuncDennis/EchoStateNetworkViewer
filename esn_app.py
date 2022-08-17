@@ -14,7 +14,7 @@ import src.streamlit_src.app_fragments.esn_build_train_predict as esn
 import src.streamlit_src.app_fragments.esn_plotting as esnplot
 
 if __name__ == '__main__':
-    st.set_page_config("Basic ESN Viewer", page_icon="⚡")
+    st.set_page_config("Echo State Network Viewer", page_icon="⚡")
 
     with st.sidebar:
         st.header("ESN Viewer")
