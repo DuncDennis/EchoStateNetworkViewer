@@ -251,12 +251,12 @@ if __name__ == '__main__':
                 if st.checkbox("Reservoir states", key="r_states_3d"):
                     time_series_dict = {"r_train": res_train_dict["r"],
                                         "r_pred": res_pred_dict["r"]}
-                    plot.st_timeseries_as_three_dim_plot(time_series_dict)
+                    plot.st_timeseries_as_three_dim_plot(time_series_dict, key="r")
                 utils.st_line()
                 if st.checkbox("Generalized reservoir states", key="r_gen_states_3d"):
                     time_series_dict = {"r_gen_train": res_train_dict["r_gen"],
                                         "r_gen_pred": res_pred_dict["r_gen"]}
-                    plot.st_timeseries_as_three_dim_plot(time_series_dict)
+                    plot.st_timeseries_as_three_dim_plot(time_series_dict, key="r_gen")
 
             with res_dyn:
                 if st.checkbox("Largest lyapunov exponent of reservoir", key="lle_res"):
