@@ -348,7 +348,7 @@ def st_r_gen_std_barplot(r_gen_train: np.ndarray, r_gen_pred: np.ndarray, key: s
 
     fig = px.bar(out, x="x_axis", y="std", color="label", log_y=log_y, barmode="group")
     fig.update_xaxes(title="r_gen index")
-
+    fig.update_layout(bargap=0.0)
     if log_y:
         fig.update_yaxes(type="log", exponentformat="E")
     st.plotly_chart(fig)
@@ -379,6 +379,7 @@ def st_r_gen_std_times_w_out_barplot(r_gen_train: np.ndarray, r_gen_pred: np.nda
     out = meas_app.get_statistical_measure(r_gen_times_wout_dict, mode="std")
 
     fig = px.bar(out, x="x_axis", y="std", color="label", log_y=log_y, barmode="group")
+    fig.update_layout(bargap=0.0)
     fig.update_xaxes(title="r_gen index")
 
     if log_y:

@@ -8,6 +8,7 @@ import plotly.express as px
 from plotly.subplots import make_subplots
 import streamlit as st
 
+from src.streamlit_src.app_fragments import streamlit_utilities as utils
 
 DEFAULT_TWO_D_FIGSIZE = (650, 350)
 DEFAULT_THREE_D_FIGSIZE = (650, 500)
@@ -23,7 +24,7 @@ def multiple_figs(figs: list[go.Figure, ...]) -> None:
         st.plotly_chart(fig)
 
 
-@st.experimental_memo
+@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
 def matrix_as_barchart(data_matrix: np.ndarray, x_axis: str = "x_dim", y_axis: str = "y_dim",
                        value_name: str = "value", title: str = "",
                        fig_size: tuple[int, int] = DEFAULT_TWO_D_FIGSIZE,
@@ -135,7 +136,7 @@ def plot_2d_line_or_scatter(to_plot_df: pd.DataFrame, x_label: str, y_label: str
     return fig
 
 
-@st.experimental_memo
+@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
 def multiple_1d_time_series(time_series_dict: dict[str, np.ndarray], mode: str = "line",
                             line_size: float | None = 1, scatter_size: float | None = 1,
                             title: str | None = None,
@@ -236,7 +237,7 @@ def multiple_1d_time_series(time_series_dict: dict[str, np.ndarray], mode: str =
     return figs
 
 
-@st.experimental_memo
+@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
 def multiple_2d_time_series(time_series_dict: dict[str, np.ndarray], mode: str = "line",
                             line_size: float | None = 1, scatter_size: float | None = 1,
                             title: str | None = None,
@@ -280,7 +281,7 @@ def multiple_2d_time_series(time_series_dict: dict[str, np.ndarray], mode: str =
     return fig
 
 
-@st.experimental_memo
+@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
 def multiple_3d_time_series(time_series_dict: dict[str, np.ndarray], mode: str = "line",
                             line_size: float | None = 1, scatter_size: float | None = 1,
                             title: str | None = None,
@@ -326,7 +327,7 @@ def multiple_3d_time_series(time_series_dict: dict[str, np.ndarray], mode: str =
     return fig
 
 
-@st.experimental_memo
+@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
 def multiple_time_series_image(time_series_dict: dict[str, np.ndarray],
                                fig_size: tuple[int, int] = DEFAULT_TWO_D_FIGSIZE,
                                x_label: str = "x",
@@ -352,7 +353,7 @@ def multiple_time_series_image(time_series_dict: dict[str, np.ndarray],
     return figs
 
 
-# @st.experimental_memo
+# @st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
 # def statistical_barplot_multiple(time_series_dict: dict[str, np.ndarray],
 #                                  mode: str = "std",
 #                                  x_label: str = "system dimension",
@@ -405,7 +406,7 @@ def multiple_time_series_image(time_series_dict: dict[str, np.ndarray],
 #     # return fig
 
 
-@st.experimental_memo
+@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
 def barplot(to_plot_df: pd.DataFrame, x: str, y: str, color: str,
             barmode: str = "group",
             fig_size: tuple[int, int] = DEFAULT_TWO_D_FIGSIZE,

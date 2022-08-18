@@ -35,7 +35,7 @@ class _ResCompCore():
         self._res_internal_update_fct = None
         self._inp_coupling_fct = None
         self._r_to_r_gen_fct = None
-        self._r_gen_to_out_fct = lambda r_gen: self._w_out @ r_gen
+        # self._r_gen_to_out_fct = lambda r_gen: self._w_out @ r_gen
 
         self._leak_factor = None
         self._node_bias = None
@@ -57,6 +57,9 @@ class _ResCompCore():
         self._reg_param = None
 
         self._default_r = None
+
+    def _r_gen_to_out_fct(self, r_gen: np.ndarray) -> np.ndarray:
+        return self._w_out @ r_gen
 
     def _res_update(self, x):
         self._last_x = x

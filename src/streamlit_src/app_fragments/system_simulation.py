@@ -8,6 +8,7 @@ import streamlit as st
 import numpy as np
 
 from src.streamlit_src.latex_formulas import systems as latexsys
+from src.streamlit_src.app_fragments import streamlit_utilities as utils
 import src.esn_src.simulations as sims
 import src.esn_src.data_preprocessing as datapre
 
@@ -226,7 +227,7 @@ def st_select_time_steps_split_up(default_t_train_disc: int = 1000,
                int(t_pred_sync), int(t_pred)
 
 
-@st.experimental_memo
+@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
 def simulate_trajectory(system_name: str, system_parameters: dict[str, Any], time_steps: int
                         ) -> np.ndarray:
     """Function to simulate a trajectory given the system_name and the system_parameters.
@@ -242,7 +243,7 @@ def simulate_trajectory(system_name: str, system_parameters: dict[str, Any], tim
     return SYSTEM_DICT[system_name](**system_parameters).simulate(time_steps=time_steps)
 
 
-@st.experimental_memo
+@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
 def get_scaled_and_shifted_data(time_series: np.ndarray,
                                 scale: float = 1.0,
                                 shift: float = 0.0
@@ -264,7 +265,7 @@ def get_scaled_and_shifted_data(time_series: np.ndarray,
     return datapre.scale_and_shift(time_series, scale=scale, shift=shift)
 
 
-@st.experimental_memo
+@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
 def get_noisy_data(time_series: np.ndarray,
                    noise_scale: float = 0.1,
                    seed: int | None = None
@@ -317,14 +318,17 @@ def st_preprocess_simulation(key: str | None = None
     return scale, shift, noise_scale
 
 
-@st.experimental_memo
-def preprocess_simulation(time_series: np.ndarray, shift: float | None = None,
+@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
+def preprocess_simulation(time_series: np.ndarray,
+                          seed: int,
+                          shift: float | None = None,
                           scale: float | None = None,
                           noise_scale: float | None = None) -> np.ndarray:
     """Function to preprocess the data: scale shift and add noise.
 
     Args:
         time_series: The input timeseries.
+        seed: The seed to use for the random noise.
         shift: The mean in every direction of the modified time series.
                If None don't scale and shift.
         scale: The std in every direction of the modified time series.
@@ -340,7 +344,7 @@ def preprocess_simulation(time_series: np.ndarray, shift: float | None = None,
         mod_time_series = get_scaled_and_shifted_data(time_series, shift=shift, scale=scale)
 
     if noise_scale is not None:
-        mod_time_series = get_noisy_data(mod_time_series, noise_scale=noise_scale)
+        mod_time_series = get_noisy_data(mod_time_series, noise_scale=noise_scale, seed=seed)
 
     return mod_time_series
 

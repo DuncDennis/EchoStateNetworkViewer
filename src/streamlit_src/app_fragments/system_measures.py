@@ -58,7 +58,7 @@ def st_largest_lyapunov_exponent(system_name: str, system_parameters: dict[str, 
     plpl.multiple_figs(figs)
 
 
-@st.experimental_memo
+@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
 def get_largest_lyapunov_exponent(system_name: str, system_parameters: dict[str, Any],
                                   steps: int = int(1e3), deviation_scale: float = 1e-10,
                                   part_time_steps: int = 15, steps_skip: int = 50) -> np.ndarray:
@@ -92,7 +92,7 @@ def get_largest_lyapunov_exponent(system_name: str, system_parameters: dict[str,
     return lle_conv
 
 
-@st.experimental_memo
+@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
 def get_largest_lyapunov_exponent_custom(_iterator_func: Callable[[np.ndarray], np.ndarray],
                                          starting_point: np.ndarray,
                                          dt: float = 1.0,

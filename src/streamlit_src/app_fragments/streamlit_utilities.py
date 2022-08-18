@@ -7,6 +7,9 @@ import numpy as np
 import streamlit as st
 
 
+MAX_CACHE_ENTRIES = 10
+
+
 def st_line() -> None:
     """Draw a seperator line."""
     st.markdown("""---""")

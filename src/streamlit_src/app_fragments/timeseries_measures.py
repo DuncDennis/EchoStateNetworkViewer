@@ -15,7 +15,7 @@ from src.streamlit_src.app_fragments import streamlit_utilities as utils
 import src.esn_src.measures as meas
 
 
-@st.experimental_memo
+@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
 def get_histograms(time_series_dict: dict[str, np.ndarray], dim_selection: list[int],
                    bins: int = 50) -> pd.DataFrame:
     """Calculate a histogram of a time_series_dict, return a pandas Dataframe.
@@ -72,7 +72,7 @@ def st_histograms(time_series_dict: dict[str, np.ndarray],
         st.plotly_chart(fig)
 
 
-@st.experimental_memo
+@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
 def get_extrema_maps(time_series_dict: dict[str, np.ndarray], dim_selection: list[int],
                      mode: str = "maximum"
                      ) -> list[dict[str, np.ndarray]]:
@@ -137,7 +137,7 @@ def st_statistical_measures(time_series_dict: dict[str, np.ndarray], key: str | 
     st.plotly_chart(fig)
 
 
-@st.experimental_memo
+@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
 def get_statistical_measure(time_series_dict: dict[str, np.ndarray],
                             mode: str = "std") -> pd.DataFrame:
     """Get a pandas DataFrame of a statistical quantity of a dict of time_series.
@@ -171,7 +171,7 @@ def get_statistical_measure(time_series_dict: dict[str, np.ndarray],
     return pd.DataFrame.from_dict(proc_data_dict)
 
 
-@st.experimental_memo
+@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
 def get_power_spectrum(time_series_dict: dict[str, np.ndarray], dt: float = 1.0,
                        per_or_freq: str = "period") -> pd.DataFrame:
     """Function to calculate the power spectrum of a time series dictionary.
@@ -259,7 +259,7 @@ def st_power_spectrum(time_series_dict: dict[str, np.ndarray], dt: float = 1.0,
         st.plotly_chart(fig)
 
 
-@st.experimental_memo
+@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
 def get_largest_lyapunov_from_data(time_series_dict: dict[str, np.ndarray],
                                    time_steps: int = 100,
                                    dt: float = 1.0,

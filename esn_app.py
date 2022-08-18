@@ -1,6 +1,8 @@
 """Streamlit app to predict a timeseries with an Echo State Network.
 Author: Dennis Duncan [DuncDennis@gmail.com]"""
 
+import copy
+
 import streamlit as st
 
 import src.streamlit_src.app_fragments.esn_app_utilities as esnutils
@@ -44,24 +46,6 @@ if __name__ == '__main__':
             dt = 1.0
 
         scale, shift, noise_scale = syssim.st_preprocess_simulation()
-
-        if simulate_bool:
-            time_series = syssim.simulate_trajectory(system_name, system_parameters, time_steps)
-            time_series = syssim.preprocess_simulation(time_series,
-                                                       scale=scale,
-                                                       shift=shift,
-                                                       noise_scale=noise_scale)
-            time_series_dict = {"time series": time_series}
-
-            x_train, x_pred = syssim.split_time_series_for_train_pred(time_series,
-                                                                      t_train_disc=t_train_disc,
-                                                                      t_train_sync=t_train_sync,
-                                                                      t_train=t_train,
-                                                                      t_pred_disc=t_pred_disc,
-                                                                      t_pred_sync=t_pred_sync,
-                                                                      t_pred=t_pred,
-                                                                      )
-            x_dim = time_series.shape[1]
         utils.st_line()
 
     with st.sidebar:
@@ -77,9 +61,6 @@ if __name__ == '__main__':
         st.header("Seed: ")
         seed = utils.st_seed()
         utils.st_line()
-        st.header("Clear cash: ")
-        utils.st_clear_all_cashes_button()
-        utils.st_line()
 
     sim_data_tab, build_tab, train_tab, predict_tab, other_vis_tab = st.tabs(
         ["🌀 Simulated data",
@@ -90,6 +71,26 @@ if __name__ == '__main__':
 
     with sim_data_tab:
         if simulate_bool:
+
+            time_series = syssim.simulate_trajectory(system_name, system_parameters,
+                                                     time_steps)
+            time_series = syssim.preprocess_simulation(time_series,
+                                                       seed,
+                                                       scale=scale,
+                                                       shift=shift,
+                                                       noise_scale=noise_scale)
+            time_series_dict = {"time series": time_series}
+
+            x_train, x_pred = syssim.split_time_series_for_train_pred(time_series,
+                                                                      t_train_disc=t_train_disc,
+                                                                      t_train_sync=t_train_sync,
+                                                                      t_train=t_train,
+                                                                      t_pred_disc=t_pred_disc,
+                                                                      t_pred_sync=t_pred_sync,
+                                                                      t_pred=t_pred,
+                                                                      )
+            x_dim = time_series.shape[1]
+
             st.markdown(
                 "Plot and measure the **simulated data**, see which intervals are used for "
                 "**training and prediction** and determine the **Lyapunov exponent** of the "
@@ -123,6 +124,7 @@ if __name__ == '__main__':
     with build_tab:
         if build_bool:
             esn_obj = esn.build(esn_type, seed=seed, x_dim=x_dim, **build_args)
+            esn_obj = copy.deepcopy(esn_obj)  # needed for the streamlit caching to work correctly.
             st.markdown("Explore the Echo State Network architecture.")
             tabs = st.tabs(["Dimensions", "Input matrix", "Network"])
             with tabs[0]:
@@ -142,10 +144,11 @@ if __name__ == '__main__':
     with train_tab:
         if train_bool:
 
-            y_train_fit, y_train_true, res_train_dict = esn.train_return_res(esn_obj,
-                                                                             x_train,
-                                                                             t_train_sync)
-
+            y_train_fit, y_train_true, res_train_dict, esn_obj = esn.train_return_res(esn_obj,
+                                                                                      x_train,
+                                                                                      t_train_sync,
+                                                                                      )
+            esn_obj = copy.deepcopy(esn_obj)  # needed for the streamlit caching to work correctly.
             train_data_dict = {"train true": y_train_true,
                                "train fitted": y_train_fit}
             st.markdown(
@@ -174,10 +177,10 @@ if __name__ == '__main__':
     with predict_tab:
         if predict_bool:
 
-            y_pred, y_pred_true, res_pred_dict = esn.predict_return_res(esn_obj,
-                                                                        x_pred,
-                                                                        t_pred_sync)
-
+            y_pred, y_pred_true, res_pred_dict, esn_obj = esn.predict_return_res(esn_obj,
+                                                                                 x_pred,
+                                                                                 t_pred_sync)
+            esn_obj = copy.deepcopy(esn_obj)  # needed for the streamlit caching to work correctly.
             pred_data_dict = {"true": y_pred_true,
                               "pred": y_pred}
             st.markdown("Compare the Echo State Network **prediction** with the **true data**.")
@@ -247,6 +250,7 @@ if __name__ == '__main__':
                     esnplot.st_r_gen_std_times_w_out_barplot(r_gen_train=res_train_dict["r_gen"],
                                                              r_gen_pred=res_pred_dict["r_gen"],
                                                              w_out=w_out)
+
             with res_time_tab:
                 if st.checkbox("Reservoir states", key="r_states_3d"):
                     time_series_dict = {"r_train": res_train_dict["r"],
