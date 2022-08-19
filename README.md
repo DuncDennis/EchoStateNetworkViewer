@@ -2,6 +2,8 @@
 A streamlit app to explore Echo State Networks.
 
 # App: 
+Link to app: https://duncdennis-echostatenetworkviewer-esn-app-0bm3qk.streamlitapp.com/
+
 ![img](https://user-images.githubusercontent.com/90915296/185076401-e3cd836b-b583-4eec-8322-2c71061fe7f8.png)
 
 # Features: 
