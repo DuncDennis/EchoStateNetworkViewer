@@ -5,10 +5,11 @@ import numpy as np
 import streamlit as st
 
 from src.streamlit_src.app_fragments import system_simulation as syssim
+from src.streamlit_src.app_fragments import esn_app_utilities as esnutils
 
 
 def st_raw_data_source(key: str | None = None
-                   ) -> tuple[str, tuple[None | np.ndarray, str, dict]]:
+                   ) -> tuple[str, tuple[None | np.ndarray, str, dict, float]]:
     """Streamlit element to select the raw data source: upload or simulate.
 
     Args:
@@ -16,32 +17,45 @@ def st_raw_data_source(key: str | None = None
 
     Returns:
         A tuple with the first element being the data_source ("Simulate" or "Upload").
-        The second element is a 3-tuple with the elements: Rawdata of shape (timesteps, dim),
-        the data_name (either the real system name if simulated or "Uploaded data") and finally
+        The second element is a 4-tuple with the elements: Rawdata of shape (timesteps, dim),
+        the data_name (either the real system name if simulated or "Uploaded data"),
         auxiliary parameters for the system as a dictionary. If the data is simulated these are
-        the system parameters. If uploaded is only includes the time step dt, which can be set.
+        the system parameters. The forth element is the timestep dt (if system has to timestep
+        it is set to 1.0).
     """
 
     data_source = st.radio("Data source",
                            options=["Simulate","Upload"],
                            label_visibility="collapsed",
-                           horizontal=True)
+                           horizontal=True,
+                           on_change=esnutils.uncheck_all_main_checkboxes)
 
     if data_source == "Simulate":
         system_name, system_parameters = syssim.st_select_system(key=key)
+        if "dt" in system_parameters.keys():
+            dt = system_parameters["dt"]
+        else:
+            dt = 1.0
+        with st.expander("Show system equations: "):
+            syssim.st_show_latex_formula(system_name)
         time_steps = syssim.st_select_time_steps(key=key)
         raw_data = syssim.simulate_trajectory(system_name, system_parameters, time_steps)
-        out = raw_data, system_name, system_parameters
+        out = raw_data, system_name, system_parameters, dt
 
     elif data_source == "Upload":
         raw_data = st_upload_data(key=key)
-        dt = st_dt_selector(key=key)
-        out = raw_data, "Uploaded data", {"dt": dt}
+        if raw_data is not None:
+            dt = st_dt_selector(key=key)
+        else:
+            dt = 1.0
+        out = raw_data, "Uploaded data", {}, dt
 
     else:
         raise ValueError("This data source selection is not accounted for. ")
 
-    st.markdown(f"**Raw data shape:** {raw_data.shape}")
+    if raw_data is not None:
+        # st.success("Raw data loaded!")
+        st.markdown(f"**Raw data shape:** {raw_data.shape}")
     return data_source, out
 
 
@@ -71,10 +85,11 @@ def st_upload_data(key: str | None = None) -> np.ndarray | None:
         # st.markdown(f"Data dtype: {data_dtype}")
         if len(data_shape) != 2:
             data = None
-            st.warning("Uploaded file has the wrong shape. It needs to have the 2D shape\n"
-                       "(time steps, data dimension)")
-        else:
-            st.success("Data accepted")
+            st.error(f"Uploaded file has the wrong shape: {data_shape}. "
+                     f"It needs to have a 2D shape: (time steps, data dimension).",
+                     icon="🚨")
+        # else:
+        #     st.success("Data accepted!")
 
     return data
 
@@ -87,8 +102,9 @@ def st_dt_selector(key: str | None = None) -> float:
     Returns:
         The desired time steps dt.
     """
-    dt = st.number_input("dt",
+    dt = st.number_input("Time step (dt)",
                          value=1.0,
                          min_value=0.0,
-                         key=f"{key}__st_dt_selector")
+                         key=f"{key}__st_dt_selector",
+                         help="Define a time step for the uploaded data.")
     return dt

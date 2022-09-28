@@ -126,14 +126,15 @@ def embedding(time_series: np.ndarray,
     return np.hstack(time_series_to_stack)
 
 
-def pca_transform(time_series: np.ndarray) -> np.ndarray:
+def pca_transform(time_series: np.ndarray,
+                  components: int | None = None) -> np.ndarray:
     """Perform a pca transform the time_series.
 
     Args:
         time_series: The input time series of shape (timesteps, x_dim).
-
+        components: The number of principle components. If None use all.
 
     Returns:
         The pca transformed time series of shape (timesteps, x_dim).
     """
-    return PCA().fit_transform(time_series)
+    return PCA(n_components=components).fit_transform(time_series)

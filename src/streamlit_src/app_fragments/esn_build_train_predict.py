@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import copy
+import inspect
 from typing import Any
 
 import numpy as np
 import streamlit as st
 
 from src.esn_src import esn, utilities
-from src.streamlit_src.app_fragments import streamlit_utilities as st_utils
+from src.streamlit_src.app_fragments import streamlit_utilities as utils
 
 def esn_hash(obj):
     items = sorted(obj.__dict__.items(), key=lambda it: it[0])
@@ -16,7 +18,7 @@ def esn_hash(obj):
 
 
 ESN_DICT = {"ESN_normal": esn.ESN_normal,
-            "ESN_pca": esn.ESN_pca,
+            # "ESN_pca": esn.ESN_pca,
             }
 
 ESN_HASH_FUNC = {esn._ResCompCore: esn_hash}
@@ -34,30 +36,183 @@ R_TO_R_GEN_TYPES = ["linear_r", "linear_and_square_r", "output_bias", "bias_and_
 ESN_TYPING = Any
 
 
+def st_select_time_steps_split_up(default_t_train_disc: int = 1000,
+                                  default_t_train_sync: int = 300,
+                                  default_t_train: int = 2000,
+                                  default_t_pred_disc: int = 1000,
+                                  default_t_pred_sync: int = 300,
+                                  default_t_pred: int = 5000,
+                                  key: str | None = None,
+                                  ) -> tuple[int, int, int, int, int, int]:
+    """Streamlit elements train discard, train sync, train, pred discard, pred sync and pred.
+
+    Args:
+        default_t_train_disc: Default train disc time steps.
+        default_t_train_sync: Default train sync time steps.
+        default_t_train: Defaut train time steps.
+        default_t_pred_disc: Default predict disc time steps.
+        default_t_pred_sync: Default predict sync time steps.
+        default_t_pred: Default predict time steps.
+        key: Provide a unique key if this streamlit element is used multiple times.
+
+    Returns:
+        The selected time steps.
+    """
+    with st.expander("Time steps: "):
+        t_train_disc = st.number_input('t_train_disc', value=default_t_train_disc, step=1,
+                                       key=f"{key}__st_select_time_steps_split_up__td")
+        t_train_sync = st.number_input('t_train_sync', value=default_t_train_sync, step=1,
+                                       key=f"{key}__st_select_time_steps_split_up__ts")
+        t_train = st.number_input('t_train', value=default_t_train, step=1,
+                                  key=f"{key}__st_select_time_steps_split_up__t")
+        t_pred_disc = st.number_input('t_pred_disc', value=default_t_pred_disc, step=1,
+                                      key=f"{key}__st_select_time_steps_split_up__pd")
+        t_pred_sync = st.number_input('t_pred_sync', value=default_t_pred_sync, step=1,
+                                      key=f"{key}__st_select_time_steps_split_up__ps")
+        t_pred = st.number_input('t_pred', value=default_t_pred, step=1,
+                                 key=f"{key}__st_select_time_steps_split_up__p")
+
+        return int(t_train_disc), int(t_train_sync), int(t_train), int(t_pred_disc), \
+               int(t_pred_sync), int(t_pred)
+
+
+def st_select_split_up_relative(total_steps: int,
+                                default_t_train_disc_rel: int = 1000,
+                                default_t_train_sync_rel: int = 300,
+                                default_t_train_rel: int = 2000,
+                                default_t_pred_disc_rel: int = 1000,
+                                default_t_pred_sync_rel: int = 300,
+                                default_t_pred_rel: int = 5000,
+                                key: str | None = None,
+                                ) -> tuple[int, int, int, int, int, int]:
+    """Streamlit elements train discard, train sync, train, pred discard, pred sync and pred.
+
+    Args:
+        default_t_train_disc_rel: Default train disc time steps.
+        default_t_train_sync_rel: Default train sync time steps.
+        default_t_train_rel: Defaut train time steps.
+        default_t_pred_disc: Default predict disc time steps.
+        default_t_pred_sync: Default predict sync time steps.
+        default_t_pred: Default predict time steps.
+        key: Provide a unique key if this streamlit element is used multiple times.
+
+    Returns:
+        The selected time steps.
+    """
+
+    total_relative = default_t_train_disc_rel + default_t_train_sync_rel + default_t_train_rel + \
+                     default_t_pred_disc_rel + default_t_pred_sync_rel + default_t_pred_rel
+
+    t_disc_rel = default_t_train_disc_rel / total_relative
+    t_sync_rel = default_t_train_sync_rel / total_relative
+    t_rel = default_t_train_rel / total_relative
+    p_disc_rel = default_t_pred_disc_rel / total_relative
+    p_sync_rel = default_t_pred_sync_rel / total_relative
+    p_rel = default_t_pred_rel / total_relative
+
+    with st.expander("Time steps: "):
+        default_t_train_disc = int(t_disc_rel * total_steps)
+        t_train_disc = st.number_input('t_train_disc', value=default_t_train_disc, step=1,
+                                       key=f"{key}__st_select_split_up_relative__td")
+        default_t_train_sync = int(t_sync_rel * total_steps)
+        t_train_sync = st.number_input('t_train_sync', value=default_t_train_sync, step=1,
+                                       key=f"{key}__st_select_split_up_relative__ts")
+        default_t_train = int(t_rel * total_steps)
+        t_train = st.number_input('t_train', value=default_t_train, step=1,
+                                  key=f"{key}__st_select_split_up_relative__t")
+        default_t_pred_disc = int(p_disc_rel * total_steps)
+        t_pred_disc = st.number_input('t_pred_disc', value=default_t_pred_disc, step=1,
+                                      key=f"{key}__st_select_split_up_relative__pd")
+        default_t_pred_sync = int(p_sync_rel * total_steps)
+        t_pred_sync = st.number_input('t_pred_sync', value=default_t_pred_sync, step=1,
+                                      key=f"{key}__st_select_split_up_relative__ps")
+        default_t_pred = int(p_rel * total_steps)
+        t_pred = st.number_input('t_pred', value=default_t_pred, step=1,
+                                 key=f"{key}__st_select_split_up_relative__p")
+
+        sum = t_train_disc + t_train_sync + t_train + t_pred_disc + t_pred_sync + t_pred
+        st.write(f"Time steps not used: {total_steps - sum}")
+
+        return t_train_disc, t_train_sync, t_train, t_pred_disc, t_pred_sync, t_pred
+
+
+def split_time_series_for_train_pred(time_series: np.ndarray,
+                                     t_train_disc: int,
+                                     t_train_sync: int,
+                                     t_train: int,
+                                     t_pred_disc: int,
+                                     t_pred_sync: int,
+                                     t_pred: int) -> tuple[np.ndarray, np.ndarray]:
+    """Split the time_series for training and prediction of an esn.
+
+    Remove t_train_disc from time_series and use t_train_sync and t_train for x_train.
+    Then remove t_pred_disc from the remainder and use the following t_pred_sync and t_pred
+    steps for x_pred.
+
+    Args:
+        time_series: The input timeseries of shape (time_steps, sys_dim).
+        t_train_disc: The time steps to skip before x_train.
+        t_train_sync: The time steps used for synchro before training.
+        t_train: The time steps used for training.
+        t_pred_disc: The time steps to skip before prediction.
+        t_pred_sync: The time steps to use for synchro before training.
+        t_pred: The time steps used for prediction.
+
+    Returns:
+        A tuple containing x_train and x_pred.
+    """
+    x_train = time_series[t_train_disc: t_train_disc + t_train_sync + t_train]
+    start = t_train_disc + t_train_sync + t_train + t_pred_disc
+    x_pred = time_series[start: start + t_pred_sync + t_pred]
+
+    return x_train, x_pred
+
+
 @st.cache(hash_funcs=ESN_HASH_FUNC, allow_output_mutation=False,
-          max_entries=st_utils.MAX_CACHE_ENTRIES)
-def build(esn_type: str, seed: int, x_dim: int, **kwargs) -> ESN_TYPING:
+          max_entries=utils.MAX_CACHE_ENTRIES)
+def build(esn_type: str, seed: int, x_dim: int, build_args: dict[str, Any]) -> ESN_TYPING:
     """Build the esn class.
 
     Args:
         esn_type: One of the esn types defined in ESN_DICT.
         seed: Set the global seed. TODO: maybe dont set global seed?
         x_dim: The x_dimension of the data to be predicted.
-        **kwargs: All other build args.
+        build_args: The build args parsed to esn_obj.build.
 
     Returns:
-        The build esn.
+        The built esn.
     """
     if esn_type in ESN_DICT.keys():
         esn = ESN_DICT[esn_type]()
     else:
         raise Exception("This esn_type is not accounted for")
 
-    build_kwargs = utilities._remove_invalid_args(esn.build, kwargs)
+    build_args = copy.deepcopy(build_args)
 
-    with utilities.temp_seed(seed):
-        esn.build(x_dim, **build_kwargs)
+    seed_args = _get_seed_args_in_build(esn)
+    rng = np.random.default_rng(seed)
+    seeds = rng.integers(0, 1000000, len(seed_args))
+    for i_seed, seed_arg in enumerate(seed_args):
+        build_args[seed_arg] = seeds[i_seed]
+
+    build_kwargs = utilities._remove_invalid_args(esn.build, build_args)
+
+    esn.build(x_dim, **build_kwargs)
     return esn
+
+
+def _get_seed_args_in_build(esn_obj: ESN_TYPING) -> list[str, ...]:
+    """Utility function to get all the seed kwargs in the esn.build function.
+
+    Args:
+        esn_obj: The esn object with the build method.
+
+    Returns:
+        List of keyword argument names of build, that have "seed" in it.
+    """
+    build_func = esn_obj.build
+    args = inspect.signature(build_func).parameters
+    return [arg_name for arg_name in args.keys() if "seed" in arg_name]
 
 
 def st_select_esn_type(esn_sub_section: tuple[str, ...] | None = None,
@@ -83,7 +238,7 @@ def st_select_esn_type(esn_sub_section: tuple[str, ...] | None = None,
     return esn_type
 
 
-def st_basic_esn_build(key: str | None = None) -> dict[str, object]:
+def st_basic_esn_build(key: str | None = None) -> dict[str, Any]:
     """Streamlit elements to specify the basic esn settings.
 
     Args:
@@ -140,8 +295,10 @@ def st_network_build_args(key: str | None = None) -> dict[str, object]:
 
 
 @st.cache(hash_funcs=ESN_HASH_FUNC, allow_output_mutation=False,
-          max_entries=st_utils.MAX_CACHE_ENTRIES)
-def train_return_res(esn_obj: ESN_TYPING, x_train: np.ndarray, t_train_sync: int,
+          max_entries=utils.MAX_CACHE_ENTRIES)
+def train_return_res(esn_obj: ESN_TYPING,
+                     x_train: np.ndarray,
+                     t_train_sync: int,
                      ) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray], ESN_TYPING]:
     """Train the esn_obj with a given x_train and t_train-sync and return internal reservoir states.
 
@@ -156,6 +313,7 @@ def train_return_res(esn_obj: ESN_TYPING, x_train: np.ndarray, t_train_sync: int
         Tuple with the fitted output, the real output and reservoir dictionary containing states
         for r_act_fct_inp, r_internal, r_input, r, r_gen, and the esn_obj.
     """
+    x_train = x_train.copy()
     esn_obj.train(x_train,
                   sync_steps=t_train_sync,
                   save_y_train=True,
@@ -180,7 +338,7 @@ def train_return_res(esn_obj: ESN_TYPING, x_train: np.ndarray, t_train_sync: int
 
 
 @st.cache(hash_funcs=ESN_HASH_FUNC, allow_output_mutation=False,
-          max_entries=st_utils.MAX_CACHE_ENTRIES)
+          max_entries=utils.MAX_CACHE_ENTRIES)
 def predict_return_res(esn_obj: ESN_TYPING, x_pred: np.ndarray, t_pred_sync: int
                        ) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray], ESN_TYPING]:
     """Predict with the esn_obj with a given x_pred and x_pred_sync and return internal reservoir states.
@@ -196,6 +354,7 @@ def predict_return_res(esn_obj: ESN_TYPING, x_pred: np.ndarray, t_pred_sync: int
         Tuple with the fitted output, the real output and reservoir dictionary containing states
         for r_act_fct_inp, r_internal, r_input, r, r_gen, and the esn_obj.
     """
+    x_pred = x_pred.copy()
     y_pred, y_pred_true = esn_obj.predict(x_pred,
                                           sync_steps=t_pred_sync,
                                           save_res_inp=True,

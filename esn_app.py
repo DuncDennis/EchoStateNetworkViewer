@@ -22,62 +22,98 @@ if __name__ == '__main__':
 
     with st.sidebar:
         st.header("ESN Viewer")
+        # raw_data_bool, preproc_data_bool, build_bool, train_bool, predict_bool = esnutils.st_main_checkboxes()
 
-        raw_data_bool, preproc_data_bool, build_bool, train_bool, predict_bool = esnutils.st_main_checkboxes()
+        status_dict={"raw_data_bool": False,
+                     "preproc_data_bool": False,
+                     "build_bool": False,
+                     "train_bool": False,
+                     "predict_bool": False}
 
+        # Raw data:
         utils.st_line()
-        st.header("📼 Raw data settings: ")
-        data_source, (data, data_name, data_parameters) = raw.st_raw_data_source()
-        # st.write("-> define all the raw data settings, so that \"data\" is created when pressing the checkbox ")
+        st.header("📼 Create raw data: ")
+        data_source, (data, data_name, data_parameters, dt) = raw.st_raw_data_source()
+        if data is not None:
+            status_dict["raw_data_bool"] = True
 
-        utils.st_line()
-        st.header("🌀 Preprocess data settings: ")
-        st.write("Define everything so that the data can be preprocessed.")
-
-        utils.st_line()
-        st.header("🛠️ ESN parameters: ")
-        st.write("Define the esn parameters.")
-
+        # Random seed:
         utils.st_line()
         st.header("🌱 Random seed: ")
+        seed = utils.st_seed()
 
+        # Preprocess data:
         utils.st_line()
-        st.header("System: ")
-        system_name, system_parameters = syssim.st_select_system()
+        st.header("🌀 Preprocess data: ")
+        if status_dict["raw_data_bool"]:
+            preproc_data = preproc.st_all_preprocess(data, noise_seed=seed)
+            status_dict["preproc_data_bool"] = True
+        else:
+            preproc_data = None
+            st.info('To see something first create the raw data in [📼 Create raw data].')
 
+        # Build ESN:
+        utils.st_line()
+        st.header("🛠️ ESN parameters: ")
+        if status_dict["preproc_data_bool"]:
+            esn_type = esn.st_select_esn_type()
+            with st.expander("Basic parameters: "):
+                basic_build_args = esn.st_basic_esn_build()
+            with st.expander("Network parameters: "):
+                build_args = basic_build_args | esn.st_network_build_args()
+
+            x_dim = preproc_data.shape[1]
+            esn_obj = esn.build(esn_type,
+                                seed=seed,
+                                x_dim=x_dim,
+                                build_args=build_args)
+            esn_obj = copy.deepcopy(esn_obj)
+            status_dict["build_bool"] = True
+        else:
+            esn_obj = None
+            st.info('To see something first create the raw data in [📼 Create raw data].')
+
+        # Train test split: TEMP
+        utils.st_line()
+        total_steps = preproc_data.shape[0]
         t_train_disc, t_train_sync, t_train, t_pred_disc, t_pred_sync, t_pred = \
-            syssim.st_select_time_steps_split_up(default_t_train_disc=2500,
-                                                 default_t_train_sync=200,
-                                                 default_t_train=5000,
-                                                 default_t_pred_disc=2500,
-                                                 default_t_pred_sync=200,
-                                                 default_t_pred=3000)
+            esn.st_select_split_up_relative(
+                total_steps=total_steps,
+                default_t_train_disc_rel=2500,
+                default_t_train_sync_rel=200,
+                default_t_train_rel=5000,
+                default_t_pred_disc_rel=2500,
+                default_t_pred_sync_rel=200,
+                default_t_pred_rel=5000)
         section_steps = [t_train_disc, t_train_sync, t_train, t_pred_disc, t_pred_sync, t_pred]
         section_names = ["train disc", "train sync", "train", "pred disc", "pred sync", "pred"]
+        x_train, x_pred = esn.split_time_series_for_train_pred(preproc_data,
+                                                               t_train_disc=t_train_disc,
+                                                               t_train_sync=t_train_sync,
+                                                               t_train=t_train,
+                                                               t_pred_disc=t_pred_disc,
+                                                               t_pred_sync=t_pred_sync,
+                                                               t_pred=t_pred,
+                                                               )
 
-        time_steps = sum(section_steps)
-
-        if "dt" in system_parameters.keys():
-            dt = system_parameters["dt"]
-        else:
-            dt = 1.0
-
-        scale, shift, noise_scale = syssim.st_preprocess_simulation()
+        # Train ESN:
         utils.st_line()
+        st.header("🦾 Train ESN: ")
+        status_dict["train_bool"] = True
+        y_train_fit, y_train_true, res_train_dict, esn_obj = esn.train_return_res(esn_obj,
+                                                                                  x_train,
+                                                                                  t_train_sync,
+                                                                                  )
+        esn_obj = copy.deepcopy(esn_obj)  # needed for the streamlit caching to work correctly.
 
-    with st.sidebar:
-        st.header("ESN: ")
-        esn_type = esn.st_select_esn_type()
-        with st.expander("Basic parameters: "):
-            basic_build_args = esn.st_basic_esn_build()
-        with st.expander("Network parameters: "):
-            build_args = basic_build_args | esn.st_network_build_args()
+        # Predict ESN:
         utils.st_line()
-
-    with st.sidebar:
-        st.header("Seed: ")
-        seed = utils.st_seed()
-        utils.st_line()
+        st.header("🔮 Predict with ESN: ")
+        status_dict["predict_bool"] = True
+        y_pred, y_pred_true, res_pred_dict, esn_obj = esn.predict_return_res(esn_obj,
+                                                                             x_pred,
+                                                                             t_pred_sync)
+        esn_obj = copy.deepcopy(esn_obj)  # needed for the streamlit caching to work correctly.
 
 
     main_tabs = st.tabs(
@@ -91,40 +127,40 @@ if __name__ == '__main__':
     raw_tab, preproc_tab, build_tab, train_tab, predict_tab, other_vis_tab = main_tabs
 
     with raw_tab:
-        if raw_data_bool:
+        if status_dict["raw_data_bool"]:
             pass
         else:
             st.info('Activate [📼 Get raw data] checkbox to see something.')
 
     with preproc_tab:
-        if preproc_data_bool:
+        if status_dict["preproc_data_bool"]:
 
-            time_series = syssim.simulate_trajectory(system_name, system_parameters,
-                                                     time_steps)
-            time_series = syssim.preprocess_simulation(time_series,
-                                                       seed,
-                                                       scale=scale,
-                                                       shift=shift,
-                                                       noise_scale=noise_scale)
-            time_series_dict = {"time series": time_series}
-
-            x_train, x_pred = syssim.split_time_series_for_train_pred(time_series,
-                                                                      t_train_disc=t_train_disc,
-                                                                      t_train_sync=t_train_sync,
-                                                                      t_train=t_train,
-                                                                      t_pred_disc=t_pred_disc,
-                                                                      t_pred_sync=t_pred_sync,
-                                                                      t_pred=t_pred,
-                                                                      )
-            x_dim = time_series.shape[1]
+            # time_series = syssim.simulate_trajectory(system_name, system_parameters,
+            #                                          time_steps)
+            # time_series = syssim.preprocess_simulation(time_series,
+            #                                            seed,
+            #                                            scale=scale,
+            #                                            shift=shift,
+            #                                            noise_scale=noise_scale)
+            time_series_dict = {"time series": preproc_data}
+            #
+            # x_train, x_pred = syssim.split_time_series_for_train_pred(time_series,
+            #                                                           t_train_disc=t_train_disc,
+            #                                                           t_train_sync=t_train_sync,
+            #                                                           t_train=t_train,
+            #                                                           t_pred_disc=t_pred_disc,
+            #                                                           t_pred_sync=t_pred_sync,
+            #                                                           t_pred=t_pred,
+            #                                                           )
+            # x_dim = time_series.shape[1]
 
             st.markdown(
                 "Plot and measure the **simulated data**, see which intervals are used for "
                 "**training and prediction** and determine the **Lyapunov exponent** of the "
                 "system. ")
-            with st.expander("Show system equation: "):
-                st.markdown(f"**{system_name}**")
-                syssim.st_show_latex_formula(system_name)
+            # with st.expander("Show system equation: "):
+            #     st.markdown(f"**{system_name}**")
+            #     syssim.st_show_latex_formula(system_name)
 
             plot_tab, measure_tab, train_pred_tab, lyapunov_tab = st.tabs(["Plot", "Measures",
                                                                            "Train-predict-split",
@@ -137,21 +173,21 @@ if __name__ == '__main__':
 
             with train_pred_tab:
                 if st.checkbox("Train / predict split"):
-                    plot.st_one_dim_time_series_with_sections(time_series,
+                    plot.st_one_dim_time_series_with_sections(preproc_data,
                                                               section_steps=section_steps,
                                                               section_names=section_names)
 
-            with lyapunov_tab:
-                if st.checkbox("Calculate Lyapunov exponent of system"):
-                    sysmeas.st_largest_lyapunov_exponent(system_name, system_parameters)
+            # with lyapunov_tab:
+            #     if st.checkbox("Calculate Lyapunov exponent of system"):
+            #         sysmeas.st_largest_lyapunov_exponent(system_name, system_parameters)
 
         else:
             st.info('Activate [🌀 Preprocess data] checkbox to see something.')
 
     with build_tab:
-        if build_bool:
-            esn_obj = esn.build(esn_type, seed=seed, x_dim=x_dim, **build_args)
-            esn_obj = copy.deepcopy(esn_obj)  # needed for the streamlit caching to work correctly.
+        if status_dict["build_bool"]:
+            # esn_obj = esn.build(esn_type, seed=seed, x_dim=x_dim, **build_args)
+            # esn_obj = copy.deepcopy(esn_obj)  # needed for the streamlit caching to work correctly.
             st.markdown("Explore the Echo State Network architecture.")
             tabs = st.tabs(["Dimensions", "Input matrix", "Network"])
             with tabs[0]:
@@ -169,13 +205,13 @@ if __name__ == '__main__':
             st.info('Activate [🛠️ Build] checkbox to see something.')
 
     with train_tab:
-        if train_bool:
+        if status_dict["train_bool"]:
 
-            y_train_fit, y_train_true, res_train_dict, esn_obj = esn.train_return_res(esn_obj,
-                                                                                      x_train,
-                                                                                      t_train_sync,
-                                                                                      )
-            esn_obj = copy.deepcopy(esn_obj)  # needed for the streamlit caching to work correctly.
+            # y_train_fit, y_train_true, res_train_dict, esn_obj = esn.train_return_res(esn_obj,
+            #                                                                           x_train,
+            #                                                                           t_train_sync,
+            #                                                                           )
+            # esn_obj = copy.deepcopy(esn_obj)  # needed for the streamlit caching to work correctly.
             train_data_dict = {"train true": y_train_true,
                                "train fitted": y_train_fit}
             st.markdown(
@@ -202,12 +238,8 @@ if __name__ == '__main__':
             st.info('Activate [🦾 Train] checkbox to see something.')
 
     with predict_tab:
-        if predict_bool:
+        if status_dict["predict_bool"]:
 
-            y_pred, y_pred_true, res_pred_dict, esn_obj = esn.predict_return_res(esn_obj,
-                                                                                 x_pred,
-                                                                                 t_pred_sync)
-            esn_obj = copy.deepcopy(esn_obj)  # needed for the streamlit caching to work correctly.
             pred_data_dict = {"true": y_pred_true,
                               "pred": y_pred}
             st.markdown("Compare the Echo State Network **prediction** with the **true data**.")
@@ -226,7 +258,7 @@ if __name__ == '__main__':
             st.info('Activate [🔮 Predict] checkbox to see something.')
 
     with other_vis_tab:
-        if predict_bool:
+        if status_dict["predict_bool"]:
             st.markdown("Explore internal quantities of the Echo State Network. ")
 
             res_states_tab, w_out_r_gen_tab, res_time_tab, res_dyn = st.tabs(
@@ -307,8 +339,8 @@ if __name__ == '__main__':
             st.info('Activate [🔮 Predict] checkbox to see something.')
 
     #  Container code at the end:
-    if build_bool:
-        x_dim, r_dim, r_gen_dim, y_dim = esn_obj.get_dimensions()
-        with architecture_container:
-            esnplot.st_plot_architecture(x_dim=x_dim, r_dim=r_dim, r_gen_dim=r_gen_dim,
-                                         y_dim=y_dim)
+    # if build_bool:
+    #     x_dim, r_dim, r_gen_dim, y_dim = esn_obj.get_dimensions()
+    #     with architecture_container:
+    #         esnplot.st_plot_architecture(x_dim=x_dim, r_dim=r_dim, r_gen_dim=r_gen_dim,
+    #                                      y_dim=y_dim)

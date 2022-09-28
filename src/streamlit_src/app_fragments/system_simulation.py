@@ -67,12 +67,9 @@ def st_select_system(systems_sub_section: tuple[str, ...] | None = None,
         if len(system_dict) == 0:
             raise ValueError(f"The systems in {systems_sub_section} are not accounted for.")
 
-    system_name = st.selectbox('System', system_dict.keys(),
+    system_name = st.selectbox('Dynamical system', system_dict.keys(),
                                key=f"{key}__st_select_system__system")
 
-    # system_name = st.selectbox('System', system_dict.keys(),
-    #                            key=f"{key}__st_select_system__system",
-    #                            on_change=utils.clear_all_cashes)
 
     sim_class = system_dict[system_name]
 
@@ -84,7 +81,7 @@ def st_select_system(systems_sub_section: tuple[str, ...] | None = None,
         else:
             raise ValueError(f"The system specified in default_parameters is not accounted for.")
 
-    with st.expander("Parameters: "):
+    with st.expander("System parameters: "):
         for param_name, val in system_parameters.items():
 
             val_type = type(val)
@@ -186,11 +183,11 @@ def st_select_time_steps(default_time_steps: int = 10000,
     Returns:
         The selected timesteps.
     """
-    return int(st.number_input('time steps', value=default_time_steps, step=1,
+    return int(st.number_input('Nr. of time steps', value=default_time_steps, step=1,
                                key=f"{key}__st_select_time_steps"))
 
 
-@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
+# @st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
 def simulate_trajectory(system_name: str, system_parameters: dict[str, Any], time_steps: int
                         ) -> np.ndarray:
     """Function to simulate a trajectory given the system_name and the system_parameters.
