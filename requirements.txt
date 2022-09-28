@@ -4,4 +4,4 @@ numpy==1.21.4
 scipy==1.7.2
 networkx==2.6.3
 sklearn
-streamlit==1.11.0
+streamlit==1.13.0
