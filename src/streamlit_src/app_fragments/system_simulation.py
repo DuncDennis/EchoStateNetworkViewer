@@ -27,8 +27,8 @@ SYSTEM_DICT = {
     "SimplestPiecewiseLinearChaotic": sims.SimplestPiecewiseLinearChaotic,
     "DoubleScroll": sims.DoubleScroll,
     "LotkaVolterra": sims.LotkaVolterra,
-    "SimplestDrivenChaotic": sims.SimplestDrivenChaotic,
-    "UedaOscillator": sims.UedaOscillator,
+    # "SimplestDrivenChaotic": sims.SimplestDrivenChaotic,
+    # "UedaOscillator": sims.UedaOscillator,
     "Henon": sims.Henon,
     "Logistic": sims.Logistic,
     "KuramotoSivashinsky": sims.KuramotoSivashinsky,
@@ -61,7 +61,8 @@ def st_select_system(systems_sub_section: tuple[str, ...] | None = None,
     if systems_sub_section is None:
         system_dict = SYSTEM_DICT
     else:
-        system_dict = {system_name: system_class for system_name, system_class in SYSTEM_DICT.items()
+        system_dict = {system_name: system_class for system_name, system_class in
+                       SYSTEM_DICT.items()
                        if system_name in systems_sub_section}
         if len(system_dict) == 0:
             raise ValueError(f"The systems in {systems_sub_section} are not accounted for.")
@@ -121,7 +122,8 @@ def st_get_model_system(system_name: str, system_parameters: dict[str, Any],
 
     modified_system_parameters = system_parameters.copy()
 
-    relative_change = st.checkbox("Relative change", key=f"{key}__st_get_model_system__rel_change_check")
+    relative_change = st.checkbox("Relative change",
+                                  key=f"{key}__st_get_model_system__rel_change_check")
 
     for i, (param_name, val) in enumerate(modified_system_parameters.items()):
         val_type = type(val)
@@ -154,8 +156,9 @@ def st_get_model_system(system_name: str, system_parameters: dict[str, Any],
                                               key=f"{key}__st_get_model_system__absint_{i}",
                                               step=1)
                 else:
-                    raise TypeError("Other default keyword arguments than float and int are currently"
-                                    "not supported.")
+                    raise TypeError(
+                        "Other default keyword arguments than float and int are currently"
+                        "not supported.")
             with right:
                 if system_parameters[param_name] == 0:
                     eps = np.nan
@@ -187,46 +190,6 @@ def st_select_time_steps(default_time_steps: int = 10000,
                                key=f"{key}__st_select_time_steps"))
 
 
-def st_select_time_steps_split_up(default_t_train_disc: int = 1000,
-                                  default_t_train_sync: int = 300,
-                                  default_t_train: int = 2000,
-                                  default_t_pred_disc: int = 1000,
-                                  default_t_pred_sync: int = 300,
-                                  default_t_pred: int = 5000,
-                                  key: str | None = None,
-                                  ) -> tuple[int, int, int, int, int, int]:
-    """Streamlit elements train discard, train sync, train, pred discard, pred sync and pred.
-
-    Args:
-        default_t_train_disc: Default train disc time steps.
-        default_t_train_sync: Default train sync time steps.
-        default_t_train: Defaut train time steps.
-        default_t_pred_disc: Default predict disc time steps.
-        default_t_pred_sync: Default predict sync time steps.
-        default_t_pred: Default predict time steps.
-        key: Provide a unique key if this streamlit element is used multiple times.
-
-    Returns:
-        The selected time steps.
-    """
-    with st.expander("Time steps: "):
-        t_train_disc = st.number_input('t_train_disc', value=default_t_train_disc, step=1,
-                                       key=f"{key}__st_select_time_steps_split_up__td")
-        t_train_sync = st.number_input('t_train_sync', value=default_t_train_sync, step=1,
-                                       key=f"{key}__st_select_time_steps_split_up__ts")
-        t_train = st.number_input('t_train', value=default_t_train, step=1,
-                                  key=f"{key}__st_select_time_steps_split_up__t")
-        t_pred_disc = st.number_input('t_pred_disc', value=default_t_pred_disc, step=1,
-                                      key=f"{key}__st_select_time_steps_split_up__pd")
-        t_pred_sync = st.number_input('t_pred_sync', value=default_t_pred_sync, step=1,
-                                      key=f"{key}__st_select_time_steps_split_up__ps")
-        t_pred = st.number_input('t_pred', value=default_t_pred, step=1,
-                                 key=f"{key}__st_select_time_steps_split_up__p")
-
-        return int(t_train_disc), int(t_train_sync), int(t_train), int(t_pred_disc), \
-               int(t_pred_sync), int(t_pred)
-
-
 @st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
 def simulate_trajectory(system_name: str, system_parameters: dict[str, Any], time_steps: int
                         ) -> np.ndarray:
@@ -243,144 +206,6 @@ def simulate_trajectory(system_name: str, system_parameters: dict[str, Any], tim
     return SYSTEM_DICT[system_name](**system_parameters).simulate(time_steps=time_steps)
 
 
-@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
-def get_scaled_and_shifted_data(time_series: np.ndarray,
-                                scale: float = 1.0,
-                                shift: float = 0.0
-                                ) -> np.ndarray:
-    """
-    Scale and shift a time series.
-
-    First center and normalize the time_series to a std of unity for each axis. Then optionally
-    rescale and/or shift the time series.
-
-    Args:
-        time_series: The time series of shape (time_steps, sys_dim).
-        scale: Scale every axis so that the std is the scale value.
-        shift: Shift every axis so that the mean is the shift value.
-
-    Returns:
-        The scaled and shifted time_series.
-    """
-    return datapre.scale_and_shift(time_series, scale=scale, shift=shift)
-
-
-@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
-def get_noisy_data(time_series: np.ndarray,
-                   noise_scale: float = 0.1,
-                   seed: int | None = None
-                   ) -> np.ndarray:
-    """Add gaussian noise to a time_series.
-
-    Args:
-        time_series: The input time series of shape (time_steps, sys_dim).
-        noise_scale: The scale of the gaussian white noise.
-        seed: The seed used to calculate the noise.
-
-    Returns:
-        The time series with added noise.
-    """
-    return datapre.add_noise(time_series, noise_scale=noise_scale, seed=seed)
-
-
-def st_preprocess_simulation(key: str | None = None
-                             ) -> tuple[float | None, float | None, float | None]:
-    """Streamlit elements to get parameters for preprocessing the data.
-
-    To be used together with preprocess_simulation.
-
-    One can add scale and center the data and add white noise.
-    Args:
-        key: Provide a unique key if this streamlit element is used multiple times.
-
-    Returns:
-        The scale, shift and noise_scale to be input into preprocess_simulation.
-    """
-    with st.expander("Preprocess:"):
-        if st.checkbox("Normalize and center",
-                       key=f"{key}__st_preprocess_simulation__normcenter_check"):
-            left, right = st.columns(2)
-            with left:
-                scale = st.number_input("scale", value=1.0, min_value=0.0, step=0.1, format="%f",
-                                        key=f"{key}__st_preprocess_simulation__scale")
-            with right:
-                shift = st.number_input("shift", value=0.0, step=0.1, format="%f",
-                                        key=f"{key}__st_preprocess_simulation__shift")
-        else:
-            scale, shift = None, None
-
-        if st.checkbox("Add white noise", key=f"{key}__st_preprocess_simulation__noise_check"):
-            noise_scale = st.number_input("noise scale", value=0.1, min_value=0.0, step=0.01,
-                                          format="%f",
-                                          key=f"{key}__st_preprocess_simulation__noise")
-        else:
-            noise_scale = None
-    return scale, shift, noise_scale
-
-
-@st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
-def preprocess_simulation(time_series: np.ndarray,
-                          seed: int,
-                          shift: float | None = None,
-                          scale: float | None = None,
-                          noise_scale: float | None = None) -> np.ndarray:
-    """Function to preprocess the data: scale shift and add noise.
-
-    Args:
-        time_series: The input timeseries.
-        seed: The seed to use for the random noise.
-        shift: The mean in every direction of the modified time series.
-               If None don't scale and shift.
-        scale: The std in every direction of the modified time series.
-               If None don't scale and shift.
-        noise_scale: The scale of the added white noise.
-
-    Returns:
-        The modified timeseries.
-    """
-
-    mod_time_series = time_series
-    if shift is not None and scale is not None:
-        mod_time_series = get_scaled_and_shifted_data(time_series, shift=shift, scale=scale)
-
-    if noise_scale is not None:
-        mod_time_series = get_noisy_data(mod_time_series, noise_scale=noise_scale, seed=seed)
-
-    return mod_time_series
-
-
-def split_time_series_for_train_pred(time_series: np.ndarray,
-                                     t_train_disc: int,
-                                     t_train_sync: int,
-                                     t_train: int,
-                                     t_pred_disc: int,
-                                     t_pred_sync: int,
-                                     t_pred: int) -> tuple[np.ndarray, np.ndarray]:
-    """Split the time_series for training and prediction of an esn.
-
-    Remove t_train_disc from time_series and use t_train_sync and t_train for x_train.
-    Then remove t_pred_disc from the remainder and use the following t_pred_sync and t_pred
-    steps for x_pred.
-
-    Args:
-        time_series: The input timeseries of shape (time_steps, sys_dim).
-        t_train_disc: The time steps to skip before x_train.
-        t_train_sync: The time steps used for synchro before training.
-        t_train: The time steps used for training.
-        t_pred_disc: The time steps to skip before prediction.
-        t_pred_sync: The time steps to use for synchro before training.
-        t_pred: The time steps used for prediction.
-
-    Returns:
-        A tuple containing x_train and x_pred.
-    """
-    x_train = time_series[t_train_disc: t_train_disc + t_train_sync + t_train]
-    start = t_train_disc + t_train_sync + t_train + t_pred_disc
-    x_pred = time_series[start: start + t_pred_sync + t_pred]
-
-    return x_train, x_pred
-
-
 def st_show_latex_formula(system_name: str) -> None:
     """Streamlit element to show the latex formula of the system.
 
@@ -395,6 +220,41 @@ def st_show_latex_formula(system_name: str) -> None:
         st.warning("No latex formula for this system implemented.")
 
 
+def get_x_dim(system_name: str, system_parameters: dict[str, Any]) -> int:
+    """Utility function to get the x_dimension of simulation after specified /w system_parameters.
+
+    Args:
+        system_name: The system name. Has to be implemented in SYSTEM_DICT.
+        system_parameters: The system parameters. Not every kwarg has to be specified.
+
+    Returns:
+        The system dimension.
+    """
+    return SYSTEM_DICT[system_name](**system_parameters).sys_dim
+
+
+def get_iterator_func(system_name: str,
+                      system_parameters: dict[str, Any] | None = None
+                      ) -> Callable[[np.ndarray], np.ndarray] | None:
+    """Utility function to get the iterator function of the specified system.
+
+    Args:
+        system_name: The system name. Has to be implemented in SYSTEM_DICT.
+        system_parameters: The system parameters. Not every kwarg has to be specified.
+                           If None, the default parameters are used.
+
+    Returns:
+        The iterator function of the specfied simulation or None.
+    """
+    if system_name not in SYSTEM_DICT:
+        return None
+    else:
+        if system_parameters is not None:
+            return SYSTEM_DICT[system_name](**system_parameters).iterate
+        else:
+            return SYSTEM_DICT[system_name]().iterate
+
+
 if __name__ == '__main__':
     st.header("System Simulation")
     with st.sidebar:
@@ -403,6 +263,5 @@ if __name__ == '__main__':
         time_steps = st_select_time_steps(default_time_steps=10000)
 
         time_series = simulate_trajectory(system_name, system_parameters, time_steps)
-        time_series = st_preprocess_simulation(time_series)
 
     st.write(time_series)

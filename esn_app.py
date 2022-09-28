@@ -14,15 +14,32 @@ import src.streamlit_src.app_fragments.streamlit_utilities as utils
 import src.streamlit_src.app_fragments.timeseries_plotting as plot
 import src.streamlit_src.app_fragments.esn_build_train_predict as esn
 import src.streamlit_src.app_fragments.esn_plotting as esnplot
+import src.streamlit_src.app_fragments.preprocess_data as preproc
+import src.streamlit_src.app_fragments.raw_data as raw
 
 if __name__ == '__main__':
     st.set_page_config("Echo State Network Viewer", page_icon="⚡")
 
     with st.sidebar:
         st.header("ESN Viewer")
-        utils.st_reset_all_check_boxes()
 
-        simulate_bool, build_bool, train_bool, predict_bool = esnutils.st_main_checkboxes()
+        raw_data_bool, preproc_data_bool, build_bool, train_bool, predict_bool = esnutils.st_main_checkboxes()
+
+        utils.st_line()
+        st.header("📼 Raw data settings: ")
+        data_source, (data, data_name, data_parameters) = raw.st_raw_data_source()
+        # st.write("-> define all the raw data settings, so that \"data\" is created when pressing the checkbox ")
+
+        utils.st_line()
+        st.header("🌀 Preprocess data settings: ")
+        st.write("Define everything so that the data can be preprocessed.")
+
+        utils.st_line()
+        st.header("🛠️ ESN parameters: ")
+        st.write("Define the esn parameters.")
+
+        utils.st_line()
+        st.header("🌱 Random seed: ")
 
         utils.st_line()
         st.header("System: ")
@@ -62,15 +79,25 @@ if __name__ == '__main__':
         seed = utils.st_seed()
         utils.st_line()
 
-    sim_data_tab, build_tab, train_tab, predict_tab, other_vis_tab = st.tabs(
-        ["🌀 Simulated data",
+
+    main_tabs = st.tabs(
+        ["📼 Raw data",
+         "🌀 Preprocessed data",
          "🛠️ Architecture",
          "🦾 Training",
          "🔮 Prediction",
          "🔬 Look-under-hood"])
 
-    with sim_data_tab:
-        if simulate_bool:
+    raw_tab, preproc_tab, build_tab, train_tab, predict_tab, other_vis_tab = main_tabs
+
+    with raw_tab:
+        if raw_data_bool:
+            pass
+        else:
+            st.info('Activate [📼 Get raw data] checkbox to see something.')
+
+    with preproc_tab:
+        if preproc_data_bool:
 
             time_series = syssim.simulate_trajectory(system_name, system_parameters,
                                                      time_steps)
@@ -119,7 +146,7 @@ if __name__ == '__main__':
                     sysmeas.st_largest_lyapunov_exponent(system_name, system_parameters)
 
         else:
-            st.info('Activate [🌀 Simulate data] checkbox to see something.')
+            st.info('Activate [🌀 Preprocess data] checkbox to see something.')
 
     with build_tab:
         if build_bool:
