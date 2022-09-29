@@ -6,7 +6,6 @@ import copy
 import streamlit as st
 
 import src.streamlit_src.app_fragments.esn_app_utilities as esnutils
-import src.streamlit_src.app_fragments.system_simulation as syssim
 import src.streamlit_src.app_fragments.timeseries_measures as measures
 import src.streamlit_src.app_fragments.pred_vs_true_plotting as pred_vs_true
 import src.streamlit_src.app_fragments.system_measures as sysmeas
@@ -22,7 +21,6 @@ if __name__ == '__main__':
 
     with st.sidebar:
         st.header("Reservoir Computing")
-        # raw_data_bool, preproc_data_bool, build_bool, train_bool, predict_bool = esnutils.st_main_checkboxes()
 
         status_container = st.container()
 
@@ -165,19 +163,48 @@ if __name__ == '__main__':
         with status_container:
             esnutils.st_write_status(status_dict)
 
-    # Main Tabs:
-    main_tabs = st.tabs(
-        ["📼 Raw data",
-         "🌀 Preprocessed data",
-         "✂ Data split",
-         "🛠️ Build",
-         "🦾 Training",
-         "🔮 Prediction",
-         # "🔬 Look-under-hood"
-         ])
+        # Experimental advanced mode:
+        advanced_mode = False
+        if st.checkbox("🚧 Advanced features",
+                       help="If checked, there is an additional tab with advanced features "
+                            "that let you look under the hood of the esn. These functions are"
+                            "to be used with care, since they are not 100% tested and explained.",
+                       key="advanced_features"):
+            advanced_mode = True
 
-    # raw_tab, preproc_tab, split_tab, build_tab, train_tab, predict_tab, more_tab = main_tabs
-    raw_tab, preproc_tab, split_tab, build_tab, train_tab, predict_tab = main_tabs
+        utils.st_line()
+        st.markdown(
+            """
+            Author: Dennis Duncan
+            
+            Contact: DuncDennis@gmail.com
+            """)
+
+        utils.st_line()
+
+    # Main Tabs:
+    if advanced_mode:
+        main_tabs = st.tabs(
+            ["📼 Raw data",
+             "🌀 Preprocessed data",
+             "✂ Data split",
+             "🛠️ Build",
+             "🦾 Training",
+             "🔮 Prediction",
+             "🔬 Look-under-hood"
+             ])
+        raw_tab, preproc_tab, split_tab, build_tab, train_tab, predict_tab, more_tab = main_tabs
+    else:
+        main_tabs = st.tabs(
+            ["📼 Raw data",
+             "🌀 Preprocessed data",
+             "✂ Data split",
+             "🛠️ Build",
+             "🦾 Training",
+             "🔮 Prediction",
+             ])
+        raw_tab, preproc_tab, split_tab, build_tab, train_tab, predict_tab = main_tabs
+
 
     with raw_tab:
         status_name = "raw_data_bool"
@@ -312,86 +339,115 @@ if __name__ == '__main__':
         else:
             st.info(esnutils.create_needed_status_string_tab(status_name))
 
+    if advanced_mode:
+        with more_tab:
+            status_name = "predict_bool"
+            if status_dict[status_name]:
+                st.markdown("Explore internal quantities of the Echo State Network. ")
 
-    # with more_tab:
-    #     status_name = "predict_bool"
-    #     if status_dict[status_name]:
-    #         st.markdown("Explore internal quantities of the Echo State Network. ")
-    #
-    #         res_states_tab, w_out_r_gen_tab, res_time_tab, res_dyn = st.tabs(
-    #             ["Internal reservoir states", "W_out and R_gen",
-    #              "Reservoir time series", "Pure reservoir dynamics"])
-    #
-    #         res_train_dict_no_rgen = {k: v for k, v in res_train_dict.items() if k != "r_gen"}
-    #         res_pred_dict_no_rgen = {k: v for k, v in res_pred_dict.items() if k != "r_gen"}
-    #
-    #         with res_states_tab:
-    #             esnplot.st_reservoir_state_formula()
-    #
-    #             if st.checkbox("Node value histograms"):
-    #                 act_fct = esn_obj.get_act_fct()
-    #                 esnplot.st_reservoir_states_histogram(res_train_dict_no_rgen,
-    #                                                       res_pred_dict_no_rgen,
-    #                                                       act_fct)
-    #             utils.st_line()
-    #             if st.checkbox("Node value time series", key=f"res_train_dict_no_rgen__checkbox"):
-    #                 esnplot.st_reservoir_node_value_timeseries(res_train_dict_no_rgen,
-    #                                                            res_pred_dict_no_rgen, )
-    #
-    #         with w_out_r_gen_tab:
-    #             w_out = esn_obj.get_w_out()
-    #             if st.checkbox("Output coupling", key="output_coupling_cb"):
-    #                 st.markdown("Sum the absolute value of the W_out matrix over all generalized "
-    #                             "reservoir indices, to see which output dimension has the "
-    #                             "strongest coupling to the reservoir states.")
-    #                 esnplot.st_plot_output_w_out_strength(w_out)
-    #             utils.st_line()
-    #             if st.checkbox("W_out matrix as barchart", key="w_out_as_bar"):
-    #                 st.markdown(
-    #                     "Show the w_out matrix as a stacked barchart, where the x axis is the "
-    #                     "index of the generalized reservoir dimension.")
-    #                 esnplot.st_plot_w_out_as_barchart(w_out)
-    #             utils.st_line()
-    #             if st.checkbox("R_gen std", key="r_gen_std"):
-    #                 st.markdown(
-    #                     "Show the standard deviation of the generalized reservoir state (r_gen) "
-    #                     "during training and prediction.")
-    #                 esnplot.st_r_gen_std_barplot(r_gen_train=res_train_dict["r_gen"],
-    #                                              r_gen_pred=res_pred_dict["r_gen"])
-    #             utils.st_line()
-    #             if st.checkbox("R_gen std times w_out", key="r_gen_std_wout"):
-    #                 st.markdown(
-    #                     "Show the standard deviation of the generalized reservoir state (r_gen) "
-    #                     "times w_out during training and prediction.")
-    #                 esnplot.st_r_gen_std_times_w_out_barplot(r_gen_train=res_train_dict["r_gen"],
-    #                                                          r_gen_pred=res_pred_dict["r_gen"],
-    #                                                          w_out=w_out)
-    #
-    #         with res_time_tab:
-    #             if st.checkbox("Reservoir states", key="r_states_3d"):
-    #                 time_series_dict = {"r_train": res_train_dict["r"],
-    #                                     "r_pred": res_pred_dict["r"]}
-    #                 plot.st_timeseries_as_three_dim_plot(time_series_dict, key="r")
-    #             utils.st_line()
-    #             if st.checkbox("Generalized reservoir states", key="r_gen_states_3d"):
-    #                 time_series_dict = {"r_gen_train": res_train_dict["r_gen"],
-    #                                     "r_gen_pred": res_pred_dict["r_gen"]}
-    #                 plot.st_timeseries_as_three_dim_plot(time_series_dict, key="r_gen")
-    #
-    #         with res_dyn:
-    #             if st.checkbox("Largest lyapunov exponent of reservoir", key="lle_res"):
-    #                 st.markdown(
-    #                     "Calculate the largest lyapunov exponent from the trained reservoir "
-    #                     "update equation, looping the output back into the reservoir.")
-    #                 # TODO: Say that the last training reservoir state is used.
-    #                 # TODO: Add Latex formula for reservoir update equation.
-    #                 res_update_func = esn_obj.get_res_iterator_func()
-    #                 res_starting_point = res_train_dict["r"][-1, :]
-    #                 sysmeas.st_largest_lyapunov_exponent_custom(res_update_func,
-    #                                                             res_starting_point,
-    #                                                             dt=dt,
-    #                                                             using_str="the reservoir update "
-    #                                                                       "equation")
-    #     else:
-    #         st.info(esnutils.create_needed_status_string_tab(status_name))
+                tabs = st.tabs(["Internal reservoir states",
+                                "W_out and R_gen",
+                                "Reservoir time series",
+                                "Reservoir based measures",
+                                "Partial w_out connections"])
+
+                res_train_dict_no_rgen = {k: v for k, v in res_train_dict.items() if k != "r_gen"}
+                res_pred_dict_no_rgen = {k: v for k, v in res_pred_dict.items() if k != "r_gen"}
+                r_gen_dict = {"r_gen_train": res_train_dict["r_gen"],
+                              "r_gen_pred": res_pred_dict["r_gen"]}
+                r_dict = {"r_train": res_train_dict["r"],
+                          "r_pred": res_pred_dict["r"]}
+                w_out = esn_obj.get_w_out()
+
+                with tabs[0]:  # Internal reservoir states
+                    esnplot.st_reservoir_state_formula()
+
+                    if st.checkbox("Node value histograms"):
+                        act_fct = esn_obj.get_act_fct()
+                        esnplot.st_reservoir_states_histogram(res_train_dict_no_rgen,
+                                                              res_pred_dict_no_rgen,
+                                                              act_fct)
+                    utils.st_line()
+                    if st.checkbox("Node value time series", key=f"res_train_dict_no_rgen__checkbox"):
+                        esnplot.st_reservoir_node_value_timeseries(res_train_dict_no_rgen,
+                                                                   res_pred_dict_no_rgen, )
+
+                    utils.st_line()
+                    if st.checkbox("Scatter matrix plot of reservoir states",
+                                   key="scatter_matrix_plot__checkbox"):
+                        esnplot.st_scatter_matrix_plot(res_train_dict, res_pred_dict,
+                                                       key="scatter_matrix_plot")
+
+                with tabs[1]:  # W_out and R_gen
+                    st.markdown(r"**Analyse** $R_\text{gen}$ **and** $W_\text{out}$:")
+                    st.markdown(r"Choose whether you want to perform an additional "
+                                r"*PCA-transformation* on $R_\text{gen}$ and $W_\text{out}$ before "
+                                r"the analysis.")
+                    choice = st.radio("PCA before analysis?", ["no", "yes"])
+                    if choice == "no":
+                        r_gen_dict_to_use = r_gen_dict
+                        w_out_to_use = w_out
+                    elif choice == "yes":
+                        with st.expander("More info..."):
+                            st.markdown(
+                                r"""
+                                **Perform a Principal Component Analysis on the** $R_\text{gen}$ **states:**
+                                - Fit the PCA on the $R_\text{gen, train}$ states. 
+                                - Use the fitted PCA to transform the $R_\text{gen, pred}$ states. 
+                                - Obtain $R_\text{gen, train}^\text{pca}$ and $R_\text{gen, pred}^\text{pca}$.
+                                - Transform $W_\text{out}$ to $W_\text{out}^\text{pca}$ with the PC-Matrix $P$.
+                                In the following, $r_\text{gen}$ refers to $r_\text{gen, pca}$ and
+                                $W_\text{out}$ refers to $W_\text{out}^\text{pca}$.
+                                """)
+                        out = esnplot.get_pca_transformed_quantities(
+                            r_gen_train=res_train_dict["r_gen"],
+                            r_gen_pred=res_pred_dict["r_gen"],
+                            w_out=w_out)
+                        r_gen_train_pca, r_gen_pred_pca, w_out_pca = out
+                        r_gen_dict_to_use = {"r_gen_train_pca": r_gen_train_pca,
+                                             "r_gen_pred_pca": r_gen_pred_pca}
+                        w_out_to_use = w_out_pca
+                    else:
+                        raise ValueError("This choice is not accounted for. ")
+
+                    utils.st_line()
+                    esnplot.st_all_w_out_r_gen_plots(r_gen_dict_to_use, w_out_to_use)
+
+                with tabs[2]:  # reservoir time series
+                    if st.checkbox("Reservoir states", key="r_states_3d"):
+                        plot.st_timeseries_as_three_dim_plot(r_dict, key="r")
+                    utils.st_line()
+                    if st.checkbox("Generalized reservoir states", key="r_gen_states_3d"):
+                        plot.st_timeseries_as_three_dim_plot(r_gen_dict, key="r_gen")
+
+                with tabs[3]:
+                    if st.checkbox("Largest lyapunov exponent of reservoir", key="lle_res"):
+                        st.markdown(
+                            "Calculate the largest lyapunov exponent from the trained reservoir "
+                            "update equation, looping the output back into the reservoir.")
+                        st.info("The last trained reservoir states is used as the initial condition. ")
+                        # TODO: Add Latex formula for reservoir update equation.
+                        res_update_func = esn_obj.get_res_iterator_func()
+                        res_starting_point = res_train_dict["r"][-1, :]
+                        sysmeas.st_largest_lyapunov_exponent_custom(res_update_func,
+                                                                    res_starting_point,
+                                                                    dt=dt,
+                                                                    using_str="the reservoir update "
+                                                                              "equation")
+                    utils.st_line()
+                    if st.checkbox("Distance between std of r_gen for train and predict",
+                                   key="dist_r_gen"):
+                        esnplot.st_dist_in_std_for_r_gen_states(r_gen_dict["r_gen_train"],
+                                                                r_gen_dict["r_gen_pred"],
+                                                                save_session_state=True)
+                with tabs[4]:
+                    if st.checkbox("Investigate partial wout connections", key="pwoutcon"):
+                        esnplot.st_investigate_partial_w_out_influence(
+                            r_gen_train=res_train_dict["r_gen"],
+                            x_train=x_train,
+                            t_train_sync=t_train_sync,
+                            w_out=w_out,
+                            key="invwout")
+            else:
+                st.info(esnutils.create_needed_status_string_tab(status_name))
 

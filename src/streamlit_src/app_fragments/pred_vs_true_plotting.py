@@ -62,6 +62,7 @@ def st_show_error(y_pred_traj: np.ndarray,
 def st_show_valid_times_vs_error_threshold(y_pred_traj: np.ndarray,
                                            y_true_traj: np.ndarray,
                                            dt: float,
+                                           save_session_state: bool = False,
                                            key: str | None = None) -> None:
     """Streamlit element to show a valid times vs error threshold plot.
 
@@ -75,6 +76,7 @@ def st_show_valid_times_vs_error_threshold(y_pred_traj: np.ndarray,
         y_pred_traj: The predicted time series with error.
         y_true_traj: The true, baseline time series.
         dt: The time step.
+        save_session_state: Whether to save the session state or not.
         key: Provide a unique key if this streamlit element is used multiple times.
 
     """
@@ -96,12 +98,14 @@ def st_show_valid_times_vs_error_threshold(y_pred_traj: np.ndarray,
         valid_times *= dt
     elif time_axis == "lyapunov times":
 
-        latest_measured_lle = utils.st_get_session_state(name="LLE")
+        latest_measured_lle = utils.st_get_session_state_category(name="LLE", category="MEASURES")
         if latest_measured_lle is None:
             disabled = True
         else:
             disabled = False
-        if st.button("Get latest measured LLE", disabled=disabled):
+
+        if st.checkbox("Use latest measured LLE", disabled=disabled, value=not(disabled),
+                       key=f"{key}__st_show_valid_times_vs_error_threshold__llecheck"):
             default_lle = latest_measured_lle
         else:
             default_lle = 0.5
@@ -115,6 +119,11 @@ def st_show_valid_times_vs_error_threshold(y_pred_traj: np.ndarray,
         valid_times *= dt * lle
     else:
         raise ValueError(f"This time_axis option {time_axis} is not accounted for.")
+
+    if save_session_state:
+        state_name = f"VT(0.4, {time_axis})"
+        # valid time at error-tresh = 0.4
+        utils.st_add_to_state_category(state_name, "MEASURES", np.round(valid_times[4], 2))
 
     data_dict = {"Valid time vs. thresh": valid_times}
     figs = plpl.multiple_1d_time_series(data_dict, y_label=f"Valid times in {y_label_add}",
