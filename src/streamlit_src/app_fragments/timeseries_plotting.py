@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import plotly.graph_objects as go
 import streamlit as st
 
 from src.streamlit_src.generalized_plotting import plotly_plots as plpl
@@ -66,12 +67,67 @@ def st_default_simulation_plot(time_series: np.ndarray) -> None:
         raise ValueError("x_dim < 1 not supported.")
 
 
+def get_one_dim_time_delay(time_series_dict: dict[str, np.ndarray],
+                           dim_selection: list[int, ...],
+                           time_delay: int = 1,
+                           line_scatter_mode: str = "scatter",
+                           mode: str = "three_d") -> list[go.Figure, ...]:
+    """Get time_delay trajectory from one time_series_dict.
+
+    Args:
+        time_series_dict: The dictionary containing the timeseries.
+        dim_selection: A list of integers representing the selected dimensions.
+        time_delay: A integer representing the time delay to use.
+        line_scatter_mode: Either "scatter" or "line".
+        mode: Either "three_d" or "two_d".
+
+    returns:
+        List of go.Figures, one for each dim-selection.
+    """
+    time_steps, sys_dim = list(time_series_dict.values())[0].shape
+    figs = []
+    for i_dim in dim_selection:
+        sub_dict = {}
+        for key, val in time_series_dict.items():
+            if mode == "three_d":
+                time_series_new = np.zeros((time_steps - time_delay * 3, 3))
+                time_series_new[:, 0] = val[:-time_delay * 3, i_dim]
+                time_series_new[:, 1] = val[1:-time_delay * 3 + 1, i_dim]
+                time_series_new[:, 2] = val[2:-time_delay * 3 + 2, i_dim]
+                sub_dict[key] = time_series_new
+            elif mode == "two_d":
+                time_series_new = np.zeros((time_steps - time_delay * 2, 2))
+                time_series_new[:, 0] = val[:-time_delay * 2, i_dim]
+                time_series_new[:, 1] = val[1:-time_delay * 2 + 1, i_dim]
+                sub_dict[key] = time_series_new
+            else:
+                raise ValueError("mode must be either \"three_d\" or \"two_d\".")
+
+        if mode == "three_d":
+            fig = plpl.multiple_3d_time_series(sub_dict,
+                                               mode=line_scatter_mode,
+                                               x_label=f"dim{i_dim}(t)",
+                                               y_label=f"dim{i_dim}(t+1)",
+                                               z_label=f"dim{i_dim}(t+2)")
+        elif mode == "two_d":
+            fig = plpl.multiple_2d_time_series(sub_dict,
+                                               mode=line_scatter_mode,
+                                               x_label=f"dim{i_dim}(t)",
+                                               y_label=f"dim{i_dim}(t+1)")
+        else:
+            raise ValueError("mode must be either \"three_d\" or \"two_d\".")
+        figs.append(fig)
+    return figs
+
+
 def st_one_dim_time_delay(time_series_dict: dict[str, np.ndarray],
+                          mode: str = "three_d",
                           key: str | None = None) -> None:
     """Streamlit element to delay embed a selection of dims and plot them as a 3d trajectory.
 
     Args:
         time_series_dict: The dictionary containing the timeseries.
+        mode: Either "three_d" or "two_d".
         key: Provide a unique key if this streamlit element is used multiple times.
 
     """
@@ -86,17 +142,10 @@ def st_one_dim_time_delay(time_series_dict: dict[str, np.ndarray],
     with right:
         scatter_or_line = st.selectbox("Line/Scatter", ["scatter", "line"],
                                        key=f"{key}__st_one_dim_time_delay__scatter_line")
-    for i_dim in dim_selection:
-        sub_dict = {}
-        for key, val in time_series_dict.items():
-            time_series_new = np.zeros((time_steps - time_delay * 3, 3))
-            time_series_new[:, 0] = val[:-time_delay * 3, i_dim]
-            time_series_new[:, 1] = val[1:-time_delay * 3 + 1, i_dim]
-            time_series_new[:, 2] = val[2:-time_delay * 3 + 2, i_dim]
-            sub_dict[key] = time_series_new
 
-        fig = plpl.multiple_3d_time_series(sub_dict, mode=scatter_or_line)
-        st.plotly_chart(fig)
+    figs = get_one_dim_time_delay(time_series_dict, dim_selection, time_delay=time_delay,
+                                  line_scatter_mode=scatter_or_line, mode=mode)
+    plpl.multiple_figs(figs)
 
 
 def st_one_dim_time_series_with_sections(time_series: np.ndarray,
@@ -132,7 +181,7 @@ def st_default_simulation_plot_dict(time_series_dict: dict[str, np.ndarray]) -> 
 
     Same as "default_simulation_plot" but for a time_series_dict.
 
-    If 1d, plot value vs. time.
+    If 1d, plot 2D time delay plot.
     If 2d, plot value_1 vs value_2 as a scatter plot.
     If 3d, plot value_1 vs value_2 vs value_3 as a line plot.
     If d>3, plot as a heatmap: values vs time.
@@ -143,9 +192,11 @@ def st_default_simulation_plot_dict(time_series_dict: dict[str, np.ndarray]) -> 
 
     x_dim = list(time_series_dict.values())[0].shape[1]
     if x_dim == 1:
-
-        figs = plpl.multiple_1d_time_series(time_series_dict,
-                                            x_label="time step", )
+        figs = get_one_dim_time_delay(time_series_dict,
+                                      dim_selection=[0, ],
+                                      time_delay=1,
+                                      line_scatter_mode="scatter",
+                                      mode="two_d")
         plpl.multiple_figs(figs)
 
     elif x_dim == 2:
@@ -176,43 +227,55 @@ def st_all_timeseries_plots(time_series_dict: dict[str, np.ndarray],
         key: Provide a unique key if this streamlit element is used multiple times.
 
     """
-    if st.checkbox("Attractor", key=f"{key}__st_all_plots__attr"):
+    if st.checkbox("Attractor",
+                   key=f"{key}__st_all_plots__attr",
+                   help="If timeseries is 1D: 2D time delay plot. If 2D or 3D: trajectory. If "
+                        "ND where N>3: As a colored array vs time."):
         st_default_simulation_plot_dict(time_series_dict)
+
     utils.st_line()
-    if st.checkbox("Time series", key=f"{key}__st_all_plots__ts"):
+    if st.checkbox("Time series",
+                   key=f"{key}__st_all_plots__ts",
+                   help="Plot the value vs. time for each dimension."):
         st.markdown("**Plot individual dimensions:**")
         st_plot_dim_selection(time_series_dict, key=f"{key}__st_all_plots")
 
+    utils.st_line()
+    if st.checkbox("Time delay plot",
+                   key=f"{key}__st_all_plots__td",
+                   help="Plot a 3D plot a selected dimension with time delay."):
+        st_one_dim_time_delay(time_series_dict, key=f"{key}__st_all_plots")
 
-def st_timeseries_as_three_dim_plot(time_series_dict: dict[str, np.ndarray],
-                                    key: str | None = None
-                                    ) -> None:
-    """
 
-    Args:
-        time_series_dict:
-        key:
-
-    Returns:
-
-    """
-    sys_dim = list(time_series_dict.values())[0].shape[1]
-    cols = st.columns(4, gap="large")
-    with cols[0]:
-        x_dim = int(st.number_input("x", value=0, min_value=0, max_value=sys_dim - 1,
-                                    key=f"{key}__st_timeseries_as_three_dim_plot__x"))
-    with cols[1]:
-        y_dim = int(st.number_input("y", value=1, min_value=0, max_value=sys_dim - 1,
-                                    key=f"{key}__st_timeseries_as_three_dim_plot__y"))
-    with cols[2]:
-        z_dim = int(st.number_input("z", value=2, min_value=0, max_value=sys_dim - 1,
-                                    key=f"{key}__st_timeseries_as_three_dim_plot__z"))
-    with cols[3]:
-        scatter_or_line = st.selectbox("Mode", ["scatter", "line"],
-                                       key=f"{key}__st_timeseries_as_three_dim_plot__sl")
-
-    time_series_dict_dims = {key: val[:, [x_dim, y_dim, z_dim]] for key, val in
-                             time_series_dict.items()}
-
-    fig = plpl.multiple_3d_time_series(time_series_dict_dims, mode=scatter_or_line)
-    st.plotly_chart(fig)
+# def st_timeseries_as_three_dim_plot(time_series_dict: dict[str, np.ndarray],
+#                                     key: str | None = None
+#                                     ) -> None:
+#     """
+#
+#     Args:
+#         time_series_dict:
+#         key:
+#
+#     Returns:
+#
+#     """
+#     sys_dim = list(time_series_dict.values())[0].shape[1]
+#     cols = st.columns(4, gap="large")
+#     with cols[0]:
+#         x_dim = int(st.number_input("x", value=0, min_value=0, max_value=sys_dim - 1,
+#                                     key=f"{key}__st_timeseries_as_three_dim_plot__x"))
+#     with cols[1]:
+#         y_dim = int(st.number_input("y", value=1, min_value=0, max_value=sys_dim - 1,
+#                                     key=f"{key}__st_timeseries_as_three_dim_plot__y"))
+#     with cols[2]:
+#         z_dim = int(st.number_input("z", value=2, min_value=0, max_value=sys_dim - 1,
+#                                     key=f"{key}__st_timeseries_as_three_dim_plot__z"))
+#     with cols[3]:
+#         scatter_or_line = st.selectbox("Mode", ["scatter", "line"],
+#                                        key=f"{key}__st_timeseries_as_three_dim_plot__sl")
+#
+#     time_series_dict_dims = {key: val[:, [x_dim, y_dim, z_dim]] for key, val in
+#                              time_series_dict.items()}
+#
+#     fig = plpl.multiple_3d_time_series(time_series_dict_dims, mode=scatter_or_line)
+#     st.plotly_chart(fig)
