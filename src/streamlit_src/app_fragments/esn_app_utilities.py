@@ -102,6 +102,23 @@ def create_needed_status_string(status_dict: dict[str, bool],
     string_to_write = "Finish the step(s): " + ", ".join(steps_need_finish) + " to see something."
     return string_to_write
 
+
+def create_needed_status_string_tab(status_name: str
+                                    ) -> str:
+    """Function to create the string which describes the current step that needs to be finished.
+
+    Used in the tabs view.
+
+    Args:
+        status_name: Name of the current status to check. E.g. "build_bool".
+
+    Returns:
+        A string of the form: f'Finish [The step] to see something.'.
+    """
+    string_to_write = f'Finish [{STATUS_TO_STATUS_LABEL_MAPPER[status_name]}] to see something.'
+    return string_to_write
+
+
 # def st_main_checkboxes(key: str | None = None) -> tuple[bool, bool, bool, bool, bool]:
 #     """Streamlit element to create 5 esn checkbs: Raw data, Prepr data, Build, Train and Predict.
 #
