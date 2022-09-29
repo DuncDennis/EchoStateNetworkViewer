@@ -149,8 +149,8 @@ def st_one_dim_time_delay(time_series_dict: dict[str, np.ndarray],
 
 
 def st_one_dim_time_series_with_sections(time_series: np.ndarray,
-                                         section_steps: list[int],
-                                         section_names: list[str],
+                                         section_steps: list[int, ...],
+                                         section_names: list[str, ...],
                                          key: str | None = None
                                          ) -> None:
     """Streamlit element to plot one dimension of a timeseries with colored sections.

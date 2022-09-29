@@ -88,9 +88,11 @@ if __name__ == '__main__':
                     status_dict[status_name] = True
                     section_names = ["train disc", "train sync", "train",
                                      "pred disc", "pred sync", "pred"]
+                    section_steps = list(split_out)
                     t_train_disc, t_train_sync, t_train, t_pred_disc, t_pred_sync, t_pred = split_out
                     x_train, x_pred = esn.split_time_series_for_train_pred(preproc_data,
                                                                            *split_out)
+
             else:
                 st.info(esnutils.create_needed_status_string(status_dict, status_name))
         except Exception as e:
@@ -180,7 +182,27 @@ if __name__ == '__main__':
     with raw_tab:
         status_name = "raw_data_bool"
         if status_dict[status_name]:
-            pass
+            time_series_dict = {"time series": data}
+            st.markdown("Plot and measure the **raw data**.")
+            plot_tab, measure_tab, lyapunov_tab = st.tabs(["Plot",
+                                                           "Measures",
+                                                           "Lyapunov Exponent"])
+            with plot_tab:
+                plot.st_all_timeseries_plots(time_series_dict, key="raw")
+
+            with measure_tab:
+                measures.st_all_data_measures(time_series_dict, dt=dt, key="raw")
+
+            with lyapunov_tab:
+                if data_source == "Simulate":
+                    if st.checkbox("Calculate Lyapunov exponent of system"):
+                        system_name = data_name
+                        system_parameters = data_parameters
+                        sysmeas.st_largest_lyapunov_exponent(system_name, system_parameters)
+                else:
+                    st.info("This feature is only available if the data is simulated from a "
+                            "dynamical system. ")
+
         else:
             st.info(esnutils.create_needed_status_string_tab(status_name))
 
@@ -192,25 +214,16 @@ if __name__ == '__main__':
 
             st.markdown("Plot and measure the **preprocessed data**.")
 
-            plot_tab, measure_tab, train_pred_tab, lyapunov_tab = st.tabs(["Plot",
-                                                                           "Measures",
-                                                                           "Train-predict-split",
-                                                                           "Lyapunov Exponent"])
+            plot_tab, measure_tab = st.tabs(["Plot",
+                                             "Measures"])
             with plot_tab:
-                plot.st_all_timeseries_plots(time_series_dict, key="simulation")
+                plot.st_all_timeseries_plots(time_series_dict,
+                                             key="preproc")
 
             with measure_tab:
-                measures.st_all_data_measures(time_series_dict, dt=dt, key="simulation")
-
-            # with train_pred_tab:
-            #     if st.checkbox("Train / predict split"):
-            #         plot.st_one_dim_time_series_with_sections(preproc_data,
-            #                                                   section_steps=section_steps,
-            #                                                   section_names=section_names)
-
-            # with lyapunov_tab:
-            #     if st.checkbox("Calculate Lyapunov exponent of system"):
-            #         sysmeas.st_largest_lyapunov_exponent(system_name, system_parameters)
+                measures.st_all_data_measures(time_series_dict,
+                                              dt=dt,
+                                              key="preproc")
 
         else:
             st.info(esnutils.create_needed_status_string_tab(status_name))
@@ -218,7 +231,11 @@ if __name__ == '__main__':
     with split_tab:
         status_name = "tp_split_bool"
         if status_dict[status_name]:
-            pass
+            st.markdown("Show the **Train-Predict split:**")
+            if st.checkbox("Show train-predict split"):
+                plot.st_one_dim_time_series_with_sections(preproc_data,
+                                                          section_steps=section_steps,
+                                                          section_names=section_names)
         else:
             st.info(esnutils.create_needed_status_string_tab(status_name))
 
