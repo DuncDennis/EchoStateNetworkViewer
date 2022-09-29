@@ -45,7 +45,7 @@ def valid_time_index(error_series: np.ndarray, error_threshold: float) -> int:
 
     Args:
         error_series: Array of shape (time_steps, ) representing the error between true and predict.
-        error_threshold: The threshold were the error is too big.
+        error_threshold: The threshold where the error is too big.
 
     Returns:
         Return the index of the error_series where time error > error_threshold for the first
@@ -61,7 +61,9 @@ def valid_time_index(error_series: np.ndarray, error_threshold: float) -> int:
         return int(np.argmax(error_step_bigger_than_thresh))
 
 
-def power_spectrum_componentwise(data: np.ndarray, period: bool = False, dt: float = 1.0
+def power_spectrum_componentwise(data: np.ndarray,
+                                 period: bool = False,
+                                 dt: float = 1.0
                                  ) -> tuple[np.ndarray, np.ndarray]:
     """Calculates the fourier power spectrum of the n-dimensional time_series.
 
@@ -96,6 +98,25 @@ def power_spectrum_componentwise(data: np.ndarray, period: bool = False, dt: flo
         xout = half_freq
 
     return xout, yout
+
+
+def mean_frequency(data: np.ndarray,
+                   dt: float = 1.0) -> np.ndarray:
+    """Calculate the componentwise mean frequency of a multi-dim signal.
+
+    Args:
+        data: Time series to transform, shape (time_steps, sys_dim).
+        dt: The time step.
+
+    Returns:
+        The mean frequency for each dimension of shape (sys_dim, ).
+    """
+    sys_dim = data.shape[1]
+    freq, power = power_spectrum_componentwise(data, period=False, dt=dt)
+    mean_freq = np.zeros(sys_dim)
+    for i in range(sys_dim):
+        mean_freq[i] = np.sum(freq * power[:, i]) / np.sum(power[:, i])
+    return mean_freq
 
 
 def largest_lyapunov_exponent(
@@ -264,3 +285,176 @@ def extrema_map(time_series: np.ndarray, mode: str = "minima", i_dim: int = 0) -
 
     extreme = x[ix]
     return np.array([extreme[:-1], extreme[1:]]).T
+
+
+def largest_cross_lyapunov_exponent(
+    iterator_func: Callable[[np.ndarray], np.ndarray],
+    predicted_trajectory: np.ndarray,
+    deviation_scale: float = 1e-10,
+    steps: int = int(1e3),
+    part_time_steps: int = 15,
+    steps_skip: int = 50,
+    dt: float = 1.0,
+    initial_pert_direction: np.ndarray | None = None,
+    return_convergence: bool = False,
+    scale_shift_vector: tuple[np.ndarray, np.ndarray] | None = None
+) -> float | np.ndarray:
+    """Numerically calculate a cross lyapunov exponent to measure the quality of the prediction.
+
+    The output is a lyapunov-exponent-like measure that measures the exponential deviation of the
+    real system (given by the iterator_func) from a predicted time series.
+
+    The algorithm is very similar to "largest_lyapunov_exponent", but instead of using a
+    real-system reference orbit, it uses the predicted trajectory as the reference orbit.
+
+    Args:
+        iterator_func: Function to iterate the real system to the next time step: x(i+1) = F(x(i)).
+        predicted_trajectory: The predicted trajectory.
+        deviation_scale: The L2-norm of the initial perturbation.
+        steps: Number of renormalization steps.
+        part_time_steps: Time steps between renormalization steps.
+        steps_skip: Number of renormalization steps to perform, before tracking the log divergence.
+                Avoid transients by using steps_skip.
+        dt: Size of time step.
+        initial_pert_direction:
+            - If np.ndarray: The direction of the initial pertur^^bation.
+            - If None: The direction of the initial perturbation is assumed to be np.ones(..).
+        return_convergence: If True, return the convergence of the largest LE; a numpy array of
+                            the shape (N, ).
+        scale_shift_vectors: Either None or a tuple where the first element is the shift-vector
+                             used to shift, and the scale-vector used to scale the
+                             predicted_trajectory compared to the data created via the
+                             iterator_func.
+                             It is assumed: data = original_data * scale_vector + shift_vector,
+                             where original_data is the trajectory produced via the iterator_func.
+
+    Returns:
+        The largest cross Lyapunov Exponent. If return_convergence is True: The convergence
+        (np.ndarray), else just the float value, which is the last value in the convergence.
+    """
+
+    if scale_shift_vector is not None:
+        scale_vec, shift_vec = scale_shift_vector
+        predicted_trajectory = (predicted_trajectory - shift_vec) / scale_vec
+
+    predicted_time_steps, x_dim = predicted_trajectory.shape
+
+    if predicted_time_steps < (steps_skip + steps) * part_time_steps:
+        raise Exception("Predicted trajectory is not long enough for the specified steps. ")
+
+    if initial_pert_direction is None:
+        initial_pert_direction = np.ones(x_dim)
+
+    initial_perturbation = initial_pert_direction * (deviation_scale / np.linalg.norm(initial_pert_direction))
+
+    log_divergence = np.zeros(steps)
+
+    x = predicted_trajectory[0, :]
+    x_pert = x + initial_perturbation
+
+    for i_n in range(steps + steps_skip):
+        for i_t in range(part_time_steps):
+            # x = iterator_func(x)
+            x_pert = iterator_func(x_pert)
+        x = predicted_trajectory[(i_n + 1) * part_time_steps, :]
+        dx = x_pert - x
+        norm_dx = np.linalg.norm(dx)
+        x_pert = x + dx * (deviation_scale / norm_dx)
+        if i_n >= steps_skip:
+            log_divergence[i_n - steps_skip] = np.log(norm_dx / deviation_scale)
+
+    if return_convergence:
+        return np.array(np.cumsum(log_divergence) / (np.arange(1, steps + 1) * dt * part_time_steps))
+    else:
+        return float(np.average(log_divergence) / (dt * part_time_steps))
+
+
+def average_valid_time_index(iterator_func: Callable[[np.ndarray], np.ndarray],
+                             predicted_trajectory: np.ndarray,
+                             error_threshold: float = 0.4,
+                             nr_slices: int = 100,
+                             part_time_steps: int = 300,
+                             normalization: str | None = None,
+                             scale_shift_vector: tuple[np.ndarray, np.ndarray] | None = None
+                             ) -> np.ndarray:
+    """Calculate a kind of average valid time for the predicted trajectory.
+
+    This function is similar to largest_cross_lyapunov_exponent.
+
+    Cut the predicted trajectory into slices and for each slice use the first point as the
+    starting point for the iterator_func (i.e. the true system). For each true and predicted slice
+    calculate valid time.
+
+    Args:
+        iterator_func: Function to iterate the real system to the next time step: x(i+1) = F(x(i)).
+        predicted_trajectory: The predicted trajectory.
+        error_threshold: The threshold where the error is too big.
+        nr_slices: The number of slices (i.e. the ensemble number).
+        part_time_steps: The time steps for each part.
+        normalization: Which normalization to choose.
+        scale_shift_vector:  Either None or a tuple where the first element is the shift-vector
+                             used to shift, and the scale-vector used to scale the
+                             predicted_trajectory compared to the data created via the
+                             iterator_func.
+                             It is assumed: data = original_data * scale_vector + shift_vector,
+                             where original_data is the trajectory produced via the iterator_func.
+
+    Returns:
+        The valid time for each slice as a np.ndarray of shape (nr_slices, ).
+    """
+    if scale_shift_vector is not None:
+        scale_vec, shift_vec = scale_shift_vector
+        predicted_trajectory = (predicted_trajectory - shift_vec) / scale_vec
+
+    sys_dim = predicted_trajectory.shape[1]
+    error_over_time_results = np.zeros((nr_slices, part_time_steps))
+    for i_step in range(nr_slices):
+        pred_traj_slice = predicted_trajectory[i_step: i_step + part_time_steps, :]
+        true_traj_slice = np.zeros((part_time_steps, sys_dim))
+        true_traj_slice[0, :] = pred_traj_slice[0, :]
+        for i_t in range(part_time_steps - 1):
+            true_traj_slice[i_t + 1, :] = iterator_func(true_traj_slice[i_t, :])
+        error_over_time_results[i_step, :] = error_over_time(pred_traj_slice,
+                                                             true_traj_slice,
+                                                             normalization=normalization)
+
+    valid_times_results = np.zeros(nr_slices)
+    for i_step in range(nr_slices):
+        error_series = error_over_time_results[i_step, :]
+        local_valid_time_index = valid_time_index(error_series,
+                                                  error_threshold=error_threshold)
+        valid_times_results[i_step] = local_valid_time_index
+
+    return valid_times_results
+
+
+def distance_in_std(x: np.ndarray,
+                    y: np.ndarray,
+                    log_bool: bool = False) -> float:
+    """Calculate the distance between the dim-wise standard deviation of two time series x and y.
+
+    # TODO: Check how well this measure can be used.
+    Optionally calculate the logarithm after calculating the std.
+    Also remove nan (is the case, when std is 0 and np.log is used.
+
+    Args:
+        x: The x time series of shape (time steps x, sys dim).
+        y: The y time series of shape (time steps y, sys dim).
+        log_bool: If true, calculate the log of the std before calculating the diff.
+
+    Returns:
+        A float representing the distance between the standard deviations of the time series.
+    """
+    if x.shape[1] != y.shape[1]:
+        raise ValueError("x and y must have the same dimension in axis = 1.")
+    std_x = np.std(x, axis=0)
+    std_y = np.std(y, axis=0)
+    if log_bool:
+        std_x = np.log(std_x)
+        std_y = np.log(std_y)
+
+    diff = std_x - std_y
+
+    # remove nan:
+    diff = diff[np.isfinite(diff)]
+    return np.linalg.norm(diff)

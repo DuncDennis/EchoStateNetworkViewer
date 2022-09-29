@@ -7,6 +7,7 @@ import itertools
 import pandas as pd
 import streamlit as st
 import numpy as np
+from scipy.stats import kurtosis, skew
 import plotly.graph_objects as go
 import plotly.express as px
 
@@ -119,20 +120,60 @@ def st_extrema_map(time_series_dict: dict[str, np.ndarray], key: str | None = No
         st.plotly_chart(fig)
 
 
-def st_statistical_measures(time_series_dict: dict[str, np.ndarray], key: str | None = None
+def st_statistical_measures(time_series_dict: dict[str, np.ndarray],
+                            key: str | None = None,
+                            x_label: str = "x_axis",
+                            bar_or_line: str = "bar",
+                            default_log_y: bool = False,
+                            default_abs: bool = False,
+                            default_measure: str = "std"
                             ) -> None:
     """Streamlit element to calculate and plot statistical quantities of a time series.
 
     Args:
         time_series_dict: The time series data.
         key: Provide a unique key if this streamlit element is used multiple times.
+        x_label: The name of the x_axis.
+        bar_or_line: Whether to plot a line or bar plot.
+        default_log_y: Whether log_y checkbox is already checked or not by default.
+        default_abs: Whether abs checkbox is already checked or not.
+        default_measure: The initial measure to use.
     """
-    mode = st.selectbox("Statistical measure", ["std", "var", "mean", "median"],
-                        key=f"{key}__st_statistical_measures")
+    cols = st.columns(2)
+    with cols[0]:
+        statistical_measures = ["std",
+                                "var",
+                                "mean",
+                                "median",
+                                "ptp",
+                                "kurtosis",
+                                "skewness"]
+        mode = st.selectbox("Statistical measure",
+                            options=statistical_measures,
+                            index=statistical_measures.index(default_measure),
+                            key=f"{key}__st_statistical_measures")
+    with cols[1]:
+        abs = st.checkbox("abs",
+                          key=f"{key}__st_statistical_measures__abs",
+                          value=default_abs)
+        log_y = st.checkbox("log y",
+                            key=f"{key}__st_statistical_measures__logy",
+                            value=default_log_y)
 
     df = get_statistical_measure(time_series_dict, mode=mode)
-    fig = plpl.barplot(df, x="x_axis", y=mode, color="label",
-                       x_label="system dimension")
+    if abs:
+        df[mode] = df[mode].abs()
+    if bar_or_line == "line":
+        fig = px.line(df, x="x_axis", y=mode, color="label", log_y=log_y)
+    elif bar_or_line == "bar":
+        fig = plpl.barplot(df, x="x_axis", y=mode, color="label")
+    else:
+        raise ValueError("bar_or_line must be either \"bar\" or \"line\".")
+
+    if log_y:
+        fig.update_yaxes(type="log", exponentformat="E")
+
+    fig.update_xaxes(title=x_label)
 
     st.plotly_chart(fig)
 
@@ -143,16 +184,15 @@ def get_statistical_measure(time_series_dict: dict[str, np.ndarray],
     """Get a pandas DataFrame of a statistical quantity of a dict of time_series.
     Args:
         time_series_dict: The dict of time_series. The key is used as the legend label.
-        mode: One of "std", "var", "mean", "median". # TODO more can be added.
+        mode: One of "std", "var", "mean", "median", "ptp", "kurtosis", "skewness. # TODO more can be added.
 
     Returns:
-        A Pandas DataFrame.
+        A Pandas DataFrame with the columns "x_axis", "label" and the mode.
     """
-
-    time_steps, sys_dim = list(time_series_dict.values())[0].shape
 
     proc_data_dict = {"x_axis": [], "label": [], mode: []}
     for label, data in time_series_dict.items():
+        sys_dim = data.shape[1]
         if mode == "std":
             stat_quant = np.std(data, axis=0)
         elif mode == "mean":
@@ -161,6 +201,12 @@ def get_statistical_measure(time_series_dict: dict[str, np.ndarray],
             stat_quant = np.median(data, axis=0)
         elif mode == "var":
             stat_quant = np.var(data, axis=0)
+        elif mode == "ptp":
+            stat_quant = np.ptp(data, axis=0)
+        elif mode == "kurtosis":
+            stat_quant = kurtosis(data, axis=0)
+        elif mode == "skewness":
+            stat_quant = skew(data, axis=0)
         else:
             raise ValueError(f"Mode {mode} is not implemented.")
 
@@ -212,8 +258,10 @@ def get_power_spectrum(time_series_dict: dict[str, np.ndarray], dt: float = 1.0,
     return pd.DataFrame.from_dict(power_spectrum_dict)
 
 
-def st_power_spectrum(time_series_dict: dict[str, np.ndarray], dt: float = 1.0,
-                      key: str | None = None) -> None:
+def st_power_spectrum(time_series_dict: dict[str, np.ndarray],
+                      dt: float = 1.0,
+                      key: str | None = None
+                      ) -> None:
     """Streamlit element to plot the power spectrum of a timeseries.
 
     Args:
@@ -257,6 +305,65 @@ def st_power_spectrum(time_series_dict: dict[str, np.ndarray], dt: float = 1.0,
                                            color="label", mode="line",
                                            title_i=f"Power Spectrum, dim = {i_dim}", log_x=log_x)
         st.plotly_chart(fig)
+
+
+@st.experimental_memo
+def get_mean_frequency(time_series_dict: dict[str, np.ndarray],
+                       dt: float = 1.0) -> dict[str, np.ndarray]:
+    """Get the mean frequency for each time series in the timeseries dict.
+
+    Args:
+        time_series_dict: The dictionary containing the time series data. Each time
+                          series has the shape (time_steps, sysdim).
+        dt: The time step to get an accurate frequency.
+
+    Returns:
+        A dictionary containing the mean frequency for each dimension for each dict key.
+    """
+    mean_frequency_dict = {}
+    for k, v in time_series_dict.items():
+        mean_frequency_dict[k] = meas.mean_frequency(v, dt=dt)
+    return mean_frequency_dict
+
+
+def st_mean_frequency(time_series_dict: dict[str, np.ndarray],
+                      dt: float | None = None,
+                      x_label: str = "dimension") -> None:
+    """Streamlit element to plot the mean frequency of a dictionary of timeseries.
+
+    Args:
+        time_series_dict: The dictionary containing the time series data. Each time
+                          series has the shape (time_steps, sysdim).
+        dt: The time step to get an accurate frequency.
+
+    """
+    sys_dim = list(time_series_dict.values())[0].shape[1]
+
+    if dt is None:
+        dt_use = 1.0
+    else:
+        dt_use = dt
+    mean_frequency_dict = get_mean_frequency(time_series_dict,
+                                             dt=dt_use)
+    fig = go.Figure()
+    if list(mean_frequency_dict.values())[0].shape[0] == 1:
+        mode = "markers"
+    else:
+        mode = "lines"
+    for key, val in mean_frequency_dict.items():
+        fig.add_trace(
+            go.Scatter(y=val, mode=mode, name=f"{key}")
+        )
+    fig.update_xaxes(title=x_label)
+    if sys_dim < 10:
+        fig.update_xaxes(tickmode='array', tickvals=np.arange(sys_dim),)
+
+    if dt is None:
+        title = "mean frequency (dt not accounted)"
+    else:
+        title = "mean frequency"
+    fig.update_yaxes(title=title)
+    st.plotly_chart(fig)
 
 
 @st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
@@ -385,29 +492,48 @@ def st_all_data_measures(data_dict: dict[str, np.ndarray], dt: float = 1.0, key:
 
     """
 
-    if st.checkbox("Consecutive extrema", key=f"{key}__st_all_data_measures__ce"):
+    if st.checkbox("Consecutive extrema",
+                   key=f"{key}__st_all_data_measures__ce"):
         st.markdown("**Plot consecutive minima or maxima for individual dimensions:**")
-        st_extrema_map(data_dict, key=f"{key}__st_all_data_measures")
+        st_extrema_map(data_dict,
+                       key=f"{key}__st_all_data_measures")
     utils.st_line()
-    if st.checkbox("Statistical measures", key=f"{key}__st_all_data_measures__sm"):
+    if st.checkbox("Statistical measures",
+                   key=f"{key}__st_all_data_measures__sm"):
         st.markdown("**Plot the standard deviation, variance, mean or median of the time series:**")
-        st_statistical_measures(data_dict, key=f"{key}__st_all_data_measures")
+        st_statistical_measures(data_dict,
+                                key=f"{key}__st_all_data_measures",
+                                x_label="system dimension")
     utils.st_line()
-    if st.checkbox("Histogram", key=f"{key}__st_all_data_measures__hist"):
+    if st.checkbox("Histogram",
+                   key=f"{key}__st_all_data_measures__hist"):
         st.markdown("**Plot the value histogram for individual dimensions:**")
-        st_histograms(data_dict, key=f"{key}__st_all_data_measures")
+        st_histograms(data_dict,
+                      key=f"{key}__st_all_data_measures")
     utils.st_line()
-    if st.checkbox("Power spectrum", key=f"{key}__st_all_data_measures__ps"):
+    if st.checkbox("Power spectrum",
+                   key=f"{key}__st_all_data_measures__ps"):
         st.markdown("**Plot the mean or dimension resolved power spectrum:**")
-        st_power_spectrum(data_dict, dt=dt, key=f"{key}__st_all_data_measures")
+        st_power_spectrum(data_dict,
+                          dt=dt,
+                          key=f"{key}__st_all_data_measures")
     utils.st_line()
-    if st.checkbox("Lyapunov from data", key=f"{key}__st_all_data_measures__ledata"):
+    if st.checkbox("Mean frequency",
+                   key=f"{key}__st_all_data_measures__mf"):
+        st.markdown("**Plot the mean frequency for each dimension:**")
+        st_mean_frequency(data_dict,
+                          dt=dt)
+    utils.st_line()
+    if st.checkbox("Lyapunov from data",
+                   key=f"{key}__st_all_data_measures__ledata"):
 
         st.markdown("**Plot the logarithmic trajectory divergence from data.**")
         with st.expander("More info ..."):
             st.write("The algorithm is based on the Rosenstein algorithm. Original Paper: Rosenstein et. al. (1992).")
             st.write("The sloap of the linear fit represents the largest Lyapunov exponent.")
-        st_largest_lyapunov_from_data(data_dict, dt=dt, key=f"{key}__st_all_data_measures")
+        st_largest_lyapunov_from_data(data_dict,
+                                      dt=dt,
+                                      key=f"{key}__st_all_data_measures")
 
 
 if __name__ == "__main__":

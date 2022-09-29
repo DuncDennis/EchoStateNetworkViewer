@@ -190,10 +190,7 @@ if __name__ == '__main__':
 
             time_series_dict = {"time series": preproc_data}
 
-            st.markdown(
-                "Plot and measure the **simulated data**, see which intervals are used for "
-                "**training and prediction** and determine the **Lyapunov exponent** of the "
-                "system. ")
+            st.markdown("Plot and measure the **preprocessed data**.")
 
             plot_tab, measure_tab, train_pred_tab, lyapunov_tab = st.tabs(["Plot",
                                                                            "Measures",
