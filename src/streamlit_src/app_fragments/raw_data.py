@@ -28,7 +28,7 @@ def st_raw_data_source(key: str | None = None
                            options=["Simulate","Upload"],
                            label_visibility="collapsed",
                            horizontal=True,
-                           on_change=esnutils.uncheck_all_main_checkboxes)
+                           )
 
     if data_source == "Simulate":
         system_name, system_parameters = syssim.st_select_system(key=key)

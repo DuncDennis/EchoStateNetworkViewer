@@ -18,104 +18,149 @@ import src.streamlit_src.app_fragments.preprocess_data as preproc
 import src.streamlit_src.app_fragments.raw_data as raw
 
 if __name__ == '__main__':
-    st.set_page_config("Echo State Network Viewer", page_icon="⚡")
+    st.set_page_config("Reservoir Computing Viewer", page_icon="⚡")
 
     with st.sidebar:
-        st.header("ESN Viewer")
+        st.header("Reservoir Computing")
         # raw_data_bool, preproc_data_bool, build_bool, train_bool, predict_bool = esnutils.st_main_checkboxes()
 
-        status_dict={"raw_data_bool": False,
-                     "preproc_data_bool": False,
-                     "build_bool": False,
-                     "train_bool": False,
-                     "predict_bool": False}
+        status_container = st.container()
 
-        # Raw data:
-        utils.st_line()
-        st.header("📼 Create raw data: ")
-        data_source, (data, data_name, data_parameters, dt) = raw.st_raw_data_source()
-        if data is not None:
-            status_dict["raw_data_bool"] = True
+        status_dict = {"seed_bool": False,
+                       "raw_data_bool": False,
+                       "preproc_data_bool": False,
+                       "build_bool": False,
+                       "tp_split_bool": False,
+                       "train_bool": False,
+                       "predict_bool": False}
 
         # Random seed:
         utils.st_line()
-        st.header("🌱 Random seed: ")
-        seed = utils.st_seed()
+        st.header("1. 🌱 Random seed: ")
+        status_name = "seed_bool"
+        try:
+            seed = utils.st_seed()
+            status_dict[status_name] = True
+        except Exception as e:
+            st.exception(e)
+
+        # Raw data:
+        utils.st_line()
+        st.header("2. 📼 Create raw data: ")
+        status_name = "raw_data_bool"
+        try:
+            data_source, (data, data_name, data_parameters, dt) = raw.st_raw_data_source()
+            if data is not None:
+                status_dict[status_name] = True
+        except Exception as e:
+            st.exception(e)
 
         # Preprocess data:
         utils.st_line()
-        st.header("🌀 Preprocess data: ")
-        if status_dict["raw_data_bool"]:
-            preproc_data = preproc.st_all_preprocess(data, noise_seed=seed)
-            status_dict["preproc_data_bool"] = True
-        else:
-            preproc_data = None
-            st.info('To see something first create the raw data in [📼 Create raw data].')
+        st.header("3. 🌀 Preprocess data: ")
+        status_name = "preproc_data_bool"
+        try:
+            if esnutils.check_if_ready_to_progress(status_dict, status_name):
+                preproc_data = preproc.st_all_preprocess(data, noise_seed=seed)
+                status_dict[status_name] = True
+            else:
+                st.info(esnutils.create_needed_status_string(status_dict, status_name))
+        except Exception as e:
+            st.exception(e)
 
-        # Build ESN:
+        # Build RC:
         utils.st_line()
-        st.header("🛠️ ESN parameters: ")
-        if status_dict["preproc_data_bool"]:
-            esn_type = esn.st_select_esn_type()
-            with st.expander("Basic parameters: "):
-                basic_build_args = esn.st_basic_esn_build()
-            with st.expander("Network parameters: "):
-                build_args = basic_build_args | esn.st_network_build_args()
+        st.header("4. 🛠️ Build RC: ")
+        status_name = "build_bool"
+        try:
+            if esnutils.check_if_ready_to_progress(status_dict, status_name):
+                esn_type = esn.st_select_esn_type()
+                with st.expander("Basic parameters: "):
+                    basic_build_args = esn.st_basic_esn_build()
+                with st.expander("Network parameters: "):
+                    build_args = basic_build_args | esn.st_network_build_args()
 
-            x_dim = preproc_data.shape[1]
-            esn_obj = esn.build(esn_type,
-                                seed=seed,
-                                x_dim=x_dim,
-                                build_args=build_args)
-            esn_obj = copy.deepcopy(esn_obj)
-            status_dict["build_bool"] = True
-        else:
-            esn_obj = None
-            st.info('To see something first create the raw data in [📼 Create raw data].')
+                x_dim = preproc_data.shape[1]
+                esn_obj = esn.build(esn_type,
+                                    seed=seed,
+                                    x_dim=x_dim,
+                                    build_args=build_args)
+                esn_obj = copy.deepcopy(esn_obj)
+                status_dict[status_name] = True
+            else:
+                st.info(esnutils.create_needed_status_string(status_dict, status_name))
+        except Exception as e:
+            st.exception(e)
 
-        # Train test split: TEMP
+        # Train-Predict split:
         utils.st_line()
-        total_steps = preproc_data.shape[0]
-        t_train_disc, t_train_sync, t_train, t_pred_disc, t_pred_sync, t_pred = \
-            esn.st_select_split_up_relative(
-                total_steps=total_steps,
-                default_t_train_disc_rel=2500,
-                default_t_train_sync_rel=200,
-                default_t_train_rel=5000,
-                default_t_pred_disc_rel=2500,
-                default_t_pred_sync_rel=200,
-                default_t_pred_rel=5000)
-        section_steps = [t_train_disc, t_train_sync, t_train, t_pred_disc, t_pred_sync, t_pred]
-        section_names = ["train disc", "train sync", "train", "pred disc", "pred sync", "pred"]
-        x_train, x_pred = esn.split_time_series_for_train_pred(preproc_data,
-                                                               t_train_disc=t_train_disc,
-                                                               t_train_sync=t_train_sync,
-                                                               t_train=t_train,
-                                                               t_pred_disc=t_pred_disc,
-                                                               t_pred_sync=t_pred_sync,
-                                                               t_pred=t_pred,
-                                                               )
+        st.header("5. ✂ Train-Predict split:")
+        status_name = "tp_split_bool"
+        try:
+            if esnutils.check_if_ready_to_progress(status_dict, status_name):
+                total_steps = preproc_data.shape[0]
+                split_out = \
+                    esn.st_select_split_up_relative(
+                        total_steps=total_steps,
+                        default_t_train_disc_rel=2500,
+                        default_t_train_sync_rel=200,
+                        default_t_train_rel=5000,
+                        default_t_pred_disc_rel=2500,
+                        default_t_pred_sync_rel=200,
+                        default_t_pred_rel=5000)
+                if split_out is not None:
+                    status_dict[status_name] = True
+                    section_names = ["train disc", "train sync", "train",
+                                     "pred disc", "pred sync", "pred"]
+                    t_train_disc, t_train_sync, t_train, t_pred_disc, t_pred_sync, t_pred = split_out
+                    x_train, x_pred = esn.split_time_series_for_train_pred(preproc_data, *split_out)
+            else:
+                st.info(esnutils.create_needed_status_string(status_dict, status_name))
+        except Exception as e:
+            st.exception(e)
 
-        # Train ESN:
+        # Train RC:
         utils.st_line()
-        st.header("🦾 Train ESN: ")
-        status_dict["train_bool"] = True
-        y_train_fit, y_train_true, res_train_dict, esn_obj = esn.train_return_res(esn_obj,
-                                                                                  x_train,
-                                                                                  t_train_sync,
-                                                                                  )
-        esn_obj = copy.deepcopy(esn_obj)  # needed for the streamlit caching to work correctly.
+        st.header("6. 🦾 Train RC: ")
+        status_name = "train_bool"
+        try:
+            if esnutils.check_if_ready_to_progress(status_dict, status_name):
+                if st.checkbox("Perform training", key="Train Checkbox"):
+                    y_train_fit, y_train_true, res_train_dict, esn_obj = esn.train_return_res(esn_obj,
+                                                                                              x_train,
+                                                                                              t_train_sync,
+                                                                                              )
+                    esn_obj = copy.deepcopy(esn_obj)
+                    status_dict[status_name] = True
+            else:
+                st.info(esnutils.create_needed_status_string(status_dict, status_name))
+        except Exception as e:
+            st.exception(e)
 
         # Predict ESN:
         utils.st_line()
-        st.header("🔮 Predict with ESN: ")
-        status_dict["predict_bool"] = True
-        y_pred, y_pred_true, res_pred_dict, esn_obj = esn.predict_return_res(esn_obj,
-                                                                             x_pred,
-                                                                             t_pred_sync)
-        esn_obj = copy.deepcopy(esn_obj)  # needed for the streamlit caching to work correctly.
+        st.header("7. 🔮 Predict with RC: ")
+        status_name = "predict_bool"
+        try:
+            if esnutils.check_if_ready_to_progress(status_dict, status_name):
+                if st.checkbox("Perform prediction", key="Predict Checkbox"):
+                    y_pred, y_pred_true, res_pred_dict, esn_obj = esn.predict_return_res(esn_obj,
+                                                                                         x_pred,
+                                                                                         t_pred_sync)
+                    esn_obj = copy.deepcopy(
+                        esn_obj)  # needed for the streamlit caching to work correctly.
+                    status_dict[status_name] = True
+            else:
+                st.info(esnutils.create_needed_status_string(status_dict, status_name))
+        except Exception as e:
+            st.exception(e)
 
+        utils.st_line()
+        # Write status:
+        with status_container:
+            esnutils.st_write_status(status_dict)
 
+    # Main Tabs:
     main_tabs = st.tabs(
         ["📼 Raw data",
          "🌀 Preprocessed data",

@@ -36,46 +36,6 @@ R_TO_R_GEN_TYPES = ["linear_r", "linear_and_square_r", "output_bias", "bias_and_
 ESN_TYPING = Any
 
 
-def st_select_time_steps_split_up(default_t_train_disc: int = 1000,
-                                  default_t_train_sync: int = 300,
-                                  default_t_train: int = 2000,
-                                  default_t_pred_disc: int = 1000,
-                                  default_t_pred_sync: int = 300,
-                                  default_t_pred: int = 5000,
-                                  key: str | None = None,
-                                  ) -> tuple[int, int, int, int, int, int]:
-    """Streamlit elements train discard, train sync, train, pred discard, pred sync and pred.
-
-    Args:
-        default_t_train_disc: Default train disc time steps.
-        default_t_train_sync: Default train sync time steps.
-        default_t_train: Defaut train time steps.
-        default_t_pred_disc: Default predict disc time steps.
-        default_t_pred_sync: Default predict sync time steps.
-        default_t_pred: Default predict time steps.
-        key: Provide a unique key if this streamlit element is used multiple times.
-
-    Returns:
-        The selected time steps.
-    """
-    with st.expander("Time steps: "):
-        t_train_disc = st.number_input('t_train_disc', value=default_t_train_disc, step=1,
-                                       key=f"{key}__st_select_time_steps_split_up__td")
-        t_train_sync = st.number_input('t_train_sync', value=default_t_train_sync, step=1,
-                                       key=f"{key}__st_select_time_steps_split_up__ts")
-        t_train = st.number_input('t_train', value=default_t_train, step=1,
-                                  key=f"{key}__st_select_time_steps_split_up__t")
-        t_pred_disc = st.number_input('t_pred_disc', value=default_t_pred_disc, step=1,
-                                      key=f"{key}__st_select_time_steps_split_up__pd")
-        t_pred_sync = st.number_input('t_pred_sync', value=default_t_pred_sync, step=1,
-                                      key=f"{key}__st_select_time_steps_split_up__ps")
-        t_pred = st.number_input('t_pred', value=default_t_pred, step=1,
-                                 key=f"{key}__st_select_time_steps_split_up__p")
-
-        return int(t_train_disc), int(t_train_sync), int(t_train), int(t_pred_disc), \
-               int(t_pred_sync), int(t_pred)
-
-
 def st_select_split_up_relative(total_steps: int,
                                 default_t_train_disc_rel: int = 1000,
                                 default_t_train_sync_rel: int = 300,
@@ -84,7 +44,7 @@ def st_select_split_up_relative(total_steps: int,
                                 default_t_pred_sync_rel: int = 300,
                                 default_t_pred_rel: int = 5000,
                                 key: str | None = None,
-                                ) -> tuple[int, int, int, int, int, int]:
+                                ) -> tuple[int, int, int, int, int, int] | None:
     """Streamlit elements train discard, train sync, train, pred discard, pred sync and pred.
 
     Args:
@@ -97,7 +57,7 @@ def st_select_split_up_relative(total_steps: int,
         key: Provide a unique key if this streamlit element is used multiple times.
 
     Returns:
-        The selected time steps.
+        The selected time steps or None if too many were selected.
     """
 
     total_relative = default_t_train_disc_rel + default_t_train_sync_rel + default_t_train_rel + \
@@ -110,30 +70,45 @@ def st_select_split_up_relative(total_steps: int,
     p_sync_rel = default_t_pred_sync_rel / total_relative
     p_rel = default_t_pred_rel / total_relative
 
-    with st.expander("Time steps: "):
+    with st.expander("Train-Predict split: "):
         default_t_train_disc = int(t_disc_rel * total_steps)
-        t_train_disc = st.number_input('t_train_disc', value=default_t_train_disc, step=1,
+        t_train_disc = st.number_input('t_train_disc',
+                                       value=default_t_train_disc,
+                                       step=1,
                                        key=f"{key}__st_select_split_up_relative__td")
         default_t_train_sync = int(t_sync_rel * total_steps)
-        t_train_sync = st.number_input('t_train_sync', value=default_t_train_sync, step=1,
+        t_train_sync = st.number_input('t_train_sync',
+                                       value=default_t_train_sync,
+                                       step=1,
                                        key=f"{key}__st_select_split_up_relative__ts")
         default_t_train = int(t_rel * total_steps)
-        t_train = st.number_input('t_train', value=default_t_train, step=1,
+        t_train = st.number_input('t_train',
+                                  value=default_t_train,
+                                  step=1,
                                   key=f"{key}__st_select_split_up_relative__t")
         default_t_pred_disc = int(p_disc_rel * total_steps)
-        t_pred_disc = st.number_input('t_pred_disc', value=default_t_pred_disc, step=1,
+        t_pred_disc = st.number_input('t_pred_disc',
+                                      value=default_t_pred_disc,
+                                      step=1,
                                       key=f"{key}__st_select_split_up_relative__pd")
         default_t_pred_sync = int(p_sync_rel * total_steps)
-        t_pred_sync = st.number_input('t_pred_sync', value=default_t_pred_sync, step=1,
+        t_pred_sync = st.number_input('t_pred_sync',
+                                      value=default_t_pred_sync,
+                                      step=1,
                                       key=f"{key}__st_select_split_up_relative__ps")
         default_t_pred = int(p_rel * total_steps)
-        t_pred = st.number_input('t_pred', value=default_t_pred, step=1,
+        t_pred = st.number_input('t_pred',
+                                 value=default_t_pred,
+                                 step=1,
                                  key=f"{key}__st_select_split_up_relative__p")
 
         sum = t_train_disc + t_train_sync + t_train + t_pred_disc + t_pred_sync + t_pred
         st.write(f"Time steps not used: {total_steps - sum}")
-
-        return t_train_disc, t_train_sync, t_train, t_pred_disc, t_pred_sync, t_pred
+        if sum > total_steps:
+            st.error("More timesteps selected than available in processed data. ", icon="🚨")
+            return None
+        else:
+            return t_train_disc, t_train_sync, t_train, t_pred_disc, t_pred_sync, t_pred
 
 
 def split_time_series_for_train_pred(time_series: np.ndarray,
