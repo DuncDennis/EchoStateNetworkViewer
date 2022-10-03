@@ -352,7 +352,7 @@ class _add_network_update_fct():
         self._n_type_flag_synonyms.add_synonyms(1, ["scale_free", "barabasi_albert"])
         self._n_type_flag_synonyms.add_synonyms(2, ["small_world", "watts_strogatz"])
         self._n_type_flag_synonyms.add_synonyms(3, ["random_directed", "erdos_renyi_directed"])
-        self._n_type_flag_synonyms.add_synonyms(4, ["random_dense_gaussian"])
+        self._n_type_flag_synonyms.add_synonyms(4, ["random_dense"])
         self._n_type_flag_synonyms.add_synonyms(5, ["scipy_sparse"])
 
     def _create_scipy_sparse(self):
@@ -413,7 +413,8 @@ class _add_network_update_fct():
             network = nx.fast_gnp_random_graph(self._r_dim, self._n_edge_prob,
                                                seed=np.random, directed=True)
         elif n_type_flag == 4:
-            network = nx.from_numpy_matrix(np.random.randn(self._r_dim, self._r_dim))
+            # network = nx.from_numpy_matrix(np.random.randn(self._r_dim, self._r_dim))
+            network = nx.from_numpy_matrix(np.ones((self._r_dim, self._r_dim)))
         else:
             raise Exception("the network type %s is not implemented" %
                             str(self._n_type_opt))
