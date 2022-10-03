@@ -72,10 +72,16 @@ def st_upload_data(key: str | None = None) -> np.ndarray | None:
         Either the data as a np.ndarray of shape (timesteps, dimension) or None.
     """
 
+    help_text = """
+                The file has to be a 2D numpy array saved as a \".npy\" file of the shape:
+                (nr of time steps,  data dimension). 
+                """
+
     data = st.file_uploader("Choose a file",
                             type="npy",
                             accept_multiple_files=False,
-                            key=f"{key}__st_upload_data__upload"
+                            key=f"{key}__st_upload_data__upload",
+                            help=help_text
                             )
     if data is not None:
         data = np.load(data)

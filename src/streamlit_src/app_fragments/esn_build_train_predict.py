@@ -18,20 +18,41 @@ def esn_hash(obj):
 
 
 ESN_DICT = {"ESN_normal": esn.ESN_normal,
-            # "ESN_pca": esn.ESN_pca,
+            "ESN_pca": esn.ESN_pca,
             }
 
 ESN_HASH_FUNC = {esn._ResCompCore: esn_hash}
 
-W_IN_TYPES = ["random_sparse", "ordered_sparse", "random_dense_uniform", "random_dense_gaussian"]
-BIAS_TYPES = ["no_bias", "random_bias", "constant_bias"]
-NETWORK_TYPES = ["erdos_renyi", "scale_free", "small_world", "random_directed",
-                 "random_dense_gaussian",
-                 "scipy_sparse"]
-ACTIVATION_FUNCTIONS = ["tanh", "sigmoid", "relu", "linear"]
-R_TO_R_GEN_TYPES = ["linear_r", "linear_and_square_r", "output_bias", "bias_and_square_r",
+W_IN_TYPES = ["random_sparse",
+              # "ordered_sparse",
+              "random_dense_uniform",
+              "random_dense_gaussian"]
+
+BIAS_TYPES = ["no_bias",
+              "random_bias",
+              "constant_bias"]
+
+NETWORK_TYPES = ["erdos_renyi",
+                 "scale_free",
+                 "small_world",
+                 "erdos_renyi_directed",
+                 "random_dense",
+                 # "scipy_sparse"
+                 ]
+
+ACTIVATION_FUNCTIONS = ["tanh",
+                        "sigmoid",
+                        "relu",
+                        "linear"]
+
+R_TO_R_GEN_TYPES = ["linear_r",
+                    "linear_and_square_r",
+                    "output_bias",
+                    "bias_and_square_r",
                     "linear_and_square_r_alt",
-                    "exponential_r", "bias_and_exponential_r"]
+                    # "exponential_r",
+                    # "bias_and_exponential_r"
+                    ]
 
 ESN_TYPING = Any
 
@@ -70,45 +91,73 @@ def st_select_split_up_relative(total_steps: int,
     p_sync_rel = default_t_pred_sync_rel / total_relative
     p_rel = default_t_pred_rel / total_relative
 
+    label_mapper_help = {"t_train_disc": "Discarded time steps before training to remove "
+                                         "transient dynamics.",
+                         "t_train_sync": "Steps used for synchronization before training.",
+                         "t_train": "Steps used for the training.",
+                         "t_pred_disc": "Discarded time steps before prediction to be "
+                                        "uncorrelated from the training data.",
+                         "t_pred_sync": "Steps used for synchronization before prediction.",
+                         "t_pred": "Nr of time steps to predict. Compare the prediction with "
+                                   "t_pred time steps of the true data."}
+
+    label_mapper = {"t_train_disc": "Train discard",
+                    "t_train_sync": "Train synchronize",
+                    "t_train": "Train",
+                    "t_pred_disc": "Prediction discard",
+                    "t_pred_sync": "Prediction synchronize",
+                    "t_pred": "Prediction"}
+
     with st.expander("Train-Predict split: "):
         default_t_train_disc = int(t_disc_rel * total_steps)
-        t_train_disc = st.number_input('t_train_disc',
+        t_train_disc = st.number_input(label_mapper['t_train_disc'],
                                        value=default_t_train_disc,
                                        step=1,
-                                       key=f"{key}__st_select_split_up_relative__td")
+                                       key=f"{key}__st_select_split_up_relative__td",
+                                       help=label_mapper_help['t_train_disc'])
         default_t_train_sync = int(t_sync_rel * total_steps)
-        t_train_sync = st.number_input('t_train_sync',
+        t_train_sync = st.number_input(label_mapper['t_train_sync'],
                                        value=default_t_train_sync,
                                        step=1,
-                                       key=f"{key}__st_select_split_up_relative__ts")
+                                       key=f"{key}__st_select_split_up_relative__ts",
+                                       help=label_mapper_help['t_train_sync'])
         default_t_train = int(t_rel * total_steps)
-        t_train = st.number_input('t_train',
+        t_train = st.number_input(label_mapper['t_train'],
                                   value=default_t_train,
                                   step=1,
-                                  key=f"{key}__st_select_split_up_relative__t")
+                                  key=f"{key}__st_select_split_up_relative__t",
+                                       help=label_mapper_help['t_train'])
         default_t_pred_disc = int(p_disc_rel * total_steps)
-        t_pred_disc = st.number_input('t_pred_disc',
+        t_pred_disc = st.number_input(label_mapper['t_pred_disc'],
                                       value=default_t_pred_disc,
                                       step=1,
-                                      key=f"{key}__st_select_split_up_relative__pd")
+                                      key=f"{key}__st_select_split_up_relative__pd",
+                                       help=label_mapper_help['t_pred_disc'])
         default_t_pred_sync = int(p_sync_rel * total_steps)
-        t_pred_sync = st.number_input('t_pred_sync',
+        t_pred_sync = st.number_input(label_mapper['t_pred_sync'],
                                       value=default_t_pred_sync,
                                       step=1,
-                                      key=f"{key}__st_select_split_up_relative__ps")
+                                      key=f"{key}__st_select_split_up_relative__ps",
+                                       help=label_mapper_help['t_pred_sync'])
         default_t_pred = int(p_rel * total_steps)
-        t_pred = st.number_input('t_pred',
+        t_pred = st.number_input(label_mapper['t_pred'],
                                  value=default_t_pred,
                                  step=1,
-                                 key=f"{key}__st_select_split_up_relative__p")
+                                 key=f"{key}__st_select_split_up_relative__p",
+                                 help=label_mapper_help['t_pred'])
 
         sum = t_train_disc + t_train_sync + t_train + t_pred_disc + t_pred_sync + t_pred
-        st.write(f"Time steps not used: {total_steps - sum}")
-        if sum > total_steps:
-            st.error("More timesteps selected than available in processed data. ", icon="🚨")
-            return None
-        else:
-            return t_train_disc, t_train_sync, t_train, t_pred_disc, t_pred_sync, t_pred
+        st.write(f"Time steps remaining: **{total_steps - sum}**")
+
+    if sum > total_steps:
+        st.error("More timesteps selected than available in processed data. ", icon="🚨")
+        return None
+    else:
+        st.markdown(f"**Train:** {t_train}")
+        st.markdown(f"**Predict:** {t_pred}")
+        # st.markdown(f"**Training:** {t_train_sync} (sync) + {t_train} (train) = {t_train_sync + t_train}")
+        # st.markdown(f"**Prediction:** {t_pred_sync} (sync) + {t_pred} (prediction) = {t_pred_sync + t_pred}")
+        return t_train_disc, t_train_sync, t_train, t_pred_disc, t_pred_sync, t_pred
 
 
 def split_time_series_for_train_pred(time_series: np.ndarray,
@@ -223,27 +272,154 @@ def st_basic_esn_build(key: str | None = None) -> dict[str, Any]:
         The basic esn build_args as a dictionary.
     """
 
+    label_mapper = {"r_dim": "Reservoir dimension",
+                    "r_to_r_gen_opt": "R-to-Rgen function",
+                    "act_fct_opt": "Activation function",
+                    "node_bias_opt": "Node bias option",
+                    "bias_scale": "Node bias scale",
+                    "leak_factor": "Leaky RC factor",
+                    "w_in_opt": "W_in option",
+                    "w_in_scale": "W_in scale",
+                    "log_reg_param": "Log of regularization parameter",
+                    }
+
+    label_mapper_help = {"r_dim": r"""The dimension of the reservoir. Should be much bigger than 
+                                  the data-dimension: 
+                                  """,
+
+                         "r_to_r_gen_opt":   r"""
+                                             The readout function to use on the reservoir states $r$ before 
+                                             multiplying $W_\text{out}$. 
+                                             - linear_r: $r \rightarrow r$ (No readout)
+                                             - output_bias: $r \rightarrow [r, 1]$
+                                             - linear_and_square_r: $r \rightarrow [r, r^2]$
+                                             - bias_and_square_r: $r \rightarrow [r, r^2, 1]$
+                                             - linear_and_square_r_alt: Square every second dimension of $r$. 
+                                               (Vector has same length as before). 
+                                             """,
+
+                         "act_fct_opt": r"""
+                                        The activation function of the reservoir nodes: 
+                                        - tanh: $x \rightarrow \tanh(x)$ (the standard activation 
+                                            function). 
+                                        - sigmoid: $x \rightarrow\frac{1}{1+\exp(-x)}$
+                                        - relu: $x \rightarrow\max(x, 0)$ (reservoir states 
+                                            might diverge). 
+                                        - linear: $x \rightarrow x$ (reservoir states might 
+                                            diverge). 
+                                        """,
+
+                         "node_bias_opt":
+                                        r"""
+                                        The kind of node bias to use:
+                                        - no_bias: Don't use node bias, i.e. $\boldsymbol{b} = 0$
+                                        - random_bias: Every node gets a random bias $b_i$ from the 
+                                            uniform distribution 
+                                            $[- \text{bias scale}, + \text{bias scale}]$.  
+                                        - constant_bias: Every node gets the same bias with the 
+                                            value: 
+                                            $b_i = \text{bias scale}, i = 1, ..., r_\text{dim}$.
+                                        """,
+
+                         "bias_scale":  r"""
+                                        The scale of the node bias. See the help of 
+                                        \"Node bias option\".
+                                        """,
+
+                         "leak_factor": r"""
+                                        The leak factor $\alpha$ in the reservoir update equation: 
+                                        $$
+                                        \boldsymbol{r}_\text{next} = \alpha 
+                                        \boldsymbol{r}_\text{prev} + (1 - \alpha) 
+                                        \text{ActFct}(...)
+                                        $$
+                                        
+                                        The standard is no leak factor. 
+                                        """,
+
+                         "w_in_opt":    r"""
+                                        Different options to randomly create $W_\text{in}$:
+                                        - random_sparse: Connect every reservoir node only with 
+                                            one input. Take the value from the uniform 
+                                            distribution: $[-\text{Win scale}, +\text{Win scale}]$.
+                                            This is the standard option. 
+                                        - random_dense_uniform: Fill the whole $W_\text{in}$ matrix 
+                                            with values from the uniform distribution: 
+                                            $[-\text{Win scale}, +\text{Win scale}]$.
+                                        - random_dense_gaussian: Fill the whole $W_\text{in}$ 
+                                            matrix with values from a gaussian distribution with
+                                            $\text{mean}=0$, and $\text{std} = \text{Win scale}$.
+                                        """,
+
+                         "w_in_scale":      r"""
+                                            See "W_in option".
+                                            """,
+                         "log_reg_param":
+                                    r"""
+                                    Specify the regularization parameter for Ridge regression. 
+                                    The regularization will be: $\gamma = 10^{-\text{choice}}$.
+                                    Smaller regularization parameters result in a better fit to 
+                                    the training data, which might result in over-fitting in 
+                                    the prediction. 
+                                    """
+
+                         }
+
     basic_build_args = {}
-    basic_build_args["r_dim"] = int(st.number_input('Reservoir Dim', value=500, step=1,
+
+    basic_build_args["r_dim"] = int(st.number_input(label_mapper['r_dim'],
+                                                    value=500,
+                                                    step=1,
+                                                    help=label_mapper_help["r_dim"],
                                                     key=f"{key}__st_basic_esn_build__rd"))
-    basic_build_args["r_to_r_gen_opt"] = st.selectbox('r_to_r_gen_opt', R_TO_R_GEN_TYPES,
+
+    basic_build_args["r_to_r_gen_opt"] = st.selectbox(label_mapper['r_to_r_gen_opt'],
+                                                      R_TO_R_GEN_TYPES,
+                                                      help=label_mapper_help["r_to_r_gen_opt"],
                                                       key=f"{key}__st_basic_esn_build__rrgen")
-    basic_build_args["act_fct_opt"] = st.selectbox('act_fct_opt', ACTIVATION_FUNCTIONS,
+
+    basic_build_args["act_fct_opt"] = st.selectbox(label_mapper['act_fct_opt'],
+                                                   ACTIVATION_FUNCTIONS,
+                                                   help=label_mapper_help["act_fct_opt"],
                                                    key=f"{key}__st_basic_esn_build__actfct")
-    basic_build_args["node_bias_opt"] = st.selectbox('node_bias_opt', BIAS_TYPES,
+
+    basic_build_args["node_bias_opt"] = st.selectbox(label_mapper['node_bias_opt'],
+                                                     BIAS_TYPES,
+                                                     help=label_mapper_help["node_bias_opt"],
                                                      key=f"{key}__st_basic_esn_build__nbo")
+
     disabled = True if basic_build_args["node_bias_opt"] == "no_bias" else False
-    basic_build_args["bias_scale"] = st.number_input('bias_scale', value=0.1, step=0.1,
+    basic_build_args["bias_scale"] = st.number_input(label_mapper['bias_scale'],
+                                                     value=0.1,
+                                                     step=0.1,
                                                      disabled=disabled,
+                                                     help=label_mapper_help["bias_scale"],
                                                      key=f"{key}__st_basic_esn_build__bs")
-    basic_build_args["leak_factor"] = st.number_input('leak_factor', value=0.0, step=0.01,
-                                                      min_value=0.0, max_value=1.0,
+
+    basic_build_args["leak_factor"] = st.number_input(label_mapper['leak_factor'],
+                                                      value=0.0,
+                                                      step=0.01,
+                                                      min_value=0.0,
+                                                      max_value=1.0,
+                                                      help=label_mapper_help["leak_factor"],
                                                       key=f"{key}__st_basic_esn_build__lf")
-    basic_build_args["w_in_opt"] = st.selectbox('w_in_opt', W_IN_TYPES,
+
+    basic_build_args["w_in_opt"] = st.selectbox(label_mapper['w_in_opt'],
+                                                W_IN_TYPES,
+                                                help=label_mapper_help["w_in_opt"],
                                                 key=f"{key}__st_basic_esn_build__winopt")
-    basic_build_args["w_in_scale"] = st.number_input('w_in_scale', value=1.0, step=0.1,
+
+    basic_build_args["w_in_scale"] = st.number_input(label_mapper['w_in_scale'],
+                                                     value=1.0,
+                                                     step=0.1,
+                                                     help=label_mapper_help["w_in_scale"],
                                                      key=f"{key}__st_basic_esn_build__winsc")
-    log_reg_param = st.number_input('Log regulation parameter', value=-7., step=1., format="%f",
+
+    log_reg_param = st.number_input(label_mapper['log_reg_param'],
+                                    value=-7.,
+                                    step=1.,
+                                    format="%f",
+                                    help=label_mapper_help["log_reg_param"],
                                     key=f"{key}__st_basic_esn_build__reg")
     basic_build_args["reg_param"] = 10 ** (log_reg_param)
 
@@ -259,13 +435,65 @@ def st_network_build_args(key: str | None = None) -> dict[str, object]:
     Returns:
         A dictionary containing the network build args.
     """
+
+    label_mapper = {
+        "n_rad": "Spectral radius",
+        "n_avg_deg": "Average network degree",
+        "n_type_opt": "Network topology"
+    }
+
+    label_mapper_help = {
+        "n_rad":
+            r"""
+            The spectral radius of the reservoir network $W$. A bigger spectral radius leads to 
+            a larger memory capacity of the reservoir, but might lead to instability. 
+            For a stable reservoir the value should be $0 < \text{spectral radius} < 1$.  
+            """,
+        "n_avg_deg":
+            r"""
+            The average node degree of the reservoir. Does not have any effect, if the network
+            topolgy is *random_dense*. 
+            """,
+        "n_type_opt":
+            r"""
+            Specify the topology of the randomly created network $W$ that connects the reservoir 
+            nodes:
+            - erdos_renyi: Create an undirected random graph known as Erdos-Renyi or binomial 
+                graph. 
+                Created with the *fast_gnp_random_graph* function of the  *NetworkX* python 
+                package. 
+            - scale_free: Create a *scale free* random graph, or also *Barabasi-Albert graph* 
+                using the *barabasi_albert_graph* function of the  *NetworkX* python package. 
+            - small_world: Create a *Watts-Strogatz small-world graph* using the 
+                *watts_strogatz_graph* function of the  *NetworkX* python package.
+            - erdos_renyi_directed: A directed Erdos-Renyi network. 
+            - random_dense: Create the adjacency matrix from a random uniform 2D array of shape 
+                $r_\text{dim} \times r_\text{dim}$. 
+            """
+    }
+
+
     network_build_args = {}
-    network_build_args["n_rad"] = st.number_input('n_rad', value=0.1, step=0.1, format="%f",
-                                                  key=f"{key}__st_network_build_args__nrad")
-    network_build_args["n_avg_deg"] = st.number_input('n_avg_deg', value=5.0, step=0.1,
-                                                      key=f"{key}__st_network_build_args__ndeg")
-    network_build_args["n_type_opt"] = st.selectbox('n_type_opt', NETWORK_TYPES,
+
+    network_build_args["n_type_opt"] = st.selectbox(label_mapper['n_type_opt'],
+                                                    NETWORK_TYPES,
+                                                    help=label_mapper_help["n_type_opt"],
                                                     key=f"{key}__st_network_build_args__nopt")
+
+    network_build_args["n_rad"] = st.number_input(label_mapper['n_rad'],
+                                                  value=0.1,
+                                                  step=0.1,
+                                                  format="%f",
+                                                  help=label_mapper_help["n_rad"],
+                                                  key=f"{key}__st_network_build_args__nrad")
+
+    network_build_args["n_avg_deg"] = st.number_input(label_mapper['n_avg_deg'],
+                                                      value=5.0,
+                                                      step=0.1,
+                                                      help=label_mapper_help["n_avg_deg"],
+                                                      key=f"{key}__st_network_build_args__ndeg")
+
+
     return network_build_args
 
 

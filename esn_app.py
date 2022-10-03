@@ -102,7 +102,8 @@ if __name__ == '__main__':
         status_name = "build_bool"
         try:
             if esnutils.check_if_ready_to_progress(status_dict, status_name):
-                esn_type = esn.st_select_esn_type()
+                # esn_type = esn.st_select_esn_type()
+                esn_type = "ESN_normal"
                 with st.expander("Basic parameters: "):
                     basic_build_args = esn.st_basic_esn_build()
                 with st.expander("Network parameters: "):
@@ -163,6 +164,9 @@ if __name__ == '__main__':
         with status_container:
             esnutils.st_write_status(status_dict)
 
+        # MORE
+        st.header("More: ")
+
         # Experimental advanced mode:
         advanced_mode = False
         if st.checkbox("🚧 Advanced features",
@@ -172,12 +176,17 @@ if __name__ == '__main__':
                        key="advanced_features"):
             advanced_mode = True
 
-        utils.st_line()
+        # with st.expander("Source and contact: "):
         st.markdown(
-            """
-            Author: Dennis Duncan
+            r"""
+            **Authors:**
             
-            Contact: DuncDennis@gmail.com
+            - App: Dennis Duncan
+            
+            - RC code: Dennis Duncan, Sebastian Baur
+            
+            **Contact:**
+            DuncDennis@gmail.com
             """)
 
         utils.st_line()
