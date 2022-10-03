@@ -330,6 +330,7 @@ if __name__ == '__main__':
                                                         y_true_traj=y_train_true,
                                                         dt=dt,
                                                         train_or_pred="train",
+                                                        with_valid_time=False,
                                                         key="train")
         else:
             st.info(esnutils.create_needed_status_string_tab(status_name))

@@ -11,6 +11,7 @@ from src.streamlit_src.latex_formulas import esn_formulas
 
 import src.esn_src.measures as meas
 
+
 @st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
 def get_error(y_pred_traj: np.ndarray,
               y_true_traj: np.ndarray, ) -> np.ndarray:
@@ -135,45 +136,96 @@ def st_all_difference_measures(y_pred_traj: np.ndarray,
                                y_true_traj: np.ndarray,
                                dt: float,
                                train_or_pred: str,
+                               with_valid_time: bool = True,
                                key: str | None = None
                                ) -> None:
     """Streamlit element for all difference based measures.
 
     - Plots the difference y_true - y_pred.
     - Plots the error(y_true, y_pred).
-    - Plots the valid time vs. error threshold.
+
+    if with_valid_time is True:
+        - Plots the valid time vs. error threshold.
 
     Args:
         y_pred_traj: The predicted time series with error.
         y_true_traj: The true, baseline time series.
         dt: The time step.
         train_or_pred: Either "train" or "predict".
+        with_valid_time: If true also create a checkbox for the valid time plot.
         key: Provide a unique key if this streamlit element is used multiple times.
 
     """
-    if st.checkbox("True - Pred", key=f"{key}__st_all_difference_measures__tmp"):
-        if train_or_pred == "train":
-            st.markdown("Plotting the difference between the real data and the fitted data. ")
-        elif train_or_pred == "predict":
-            st.markdown("Plotting the difference between the real data and the predicted data. ")
+
+    if train_or_pred == "train":
+        checkbox_name = "True - Fitted"
+        checkbox_help = r"""
+                        Plot the difference in true and fitted time series. 
+                        Values should be small for a good fit. 
+                        """
+        markdown_text = "Plotting the difference between the real data and the fitted data. "
+        y_label = "True - Fitted"
+
+    elif train_or_pred == "predict":
+        checkbox_name = "True - Pred"
+        checkbox_help = r"""
+                        Plot the difference in true and predicted time series. 
+                        """
+        markdown_text = "Plotting the difference between the real data and the predicted data. "
+        y_label = "True - Pred"
+    else:
+        raise ValueError("This train_or_pred setting not recognized. ")
+
+    if st.checkbox(checkbox_name,
+                   help=checkbox_help,
+                   key=f"{key}__st_all_difference_measures__tmp"):
+        st.markdown(markdown_text)
         difference_dict = {"Difference": y_true_traj - y_pred_traj}
         figs = plpl.multiple_1d_time_series(difference_dict,
                                             subplot_dimensions_bool=False,
-                                            y_label="True - Pred")
+                                            y_label=y_label)
         plpl.multiple_figs(figs)
+
     utils.st_line()
-    if st.checkbox("Error", key=f"{key}__st_all_difference_measures__error"):
+    if train_or_pred == "train":
+        checkbox_name_error = "Error between true and fitted data"
+        error_help = r"""
+            The error between the true and fitted data over time. 
+            """
+        error_formula = esn_formulas.y_true_and_fit
+    elif train_or_pred == "predict":
+        checkbox_name_error = "Error between true and predicted data"
+        error_help = r"""
+            The error between the true and predicted data over time. This is the error used for 
+            valid time. 
+            """
+        error_formula = esn_formulas.y_true_and_pred
+    else:
+        raise ValueError("This train_or_pred setting not recognized. ")
+
+    if st.checkbox(checkbox_name_error,
+                   help=error_help,
+                   key=f"{key}__st_all_difference_measures__error"):
+
         st.latex(esn_formulas.error_1)
-        if train_or_pred == "train":
-            st.latex(esn_formulas.y_true_and_fit)
-        elif train_or_pred == "predict":
-            st.latex(esn_formulas.y_true_and_pred)
+        st.latex(error_formula)
 
         st_show_error(y_pred_traj, y_true_traj)
-    utils.st_line()
-    if st.checkbox("Valid time", key=f"{key}__st_all_difference_measures__vt"):
-        st.markdown("First time, when the error is bigger than the error threshold.")
-        st_show_valid_times_vs_error_threshold(y_pred_traj, y_true_traj, dt=dt)
+
+    if with_valid_time:
+        utils.st_line()
+        if st.checkbox("Valid time",
+                       help=
+                       r"""
+                       Calculate the valid time for a collection of error threshholds. 
+                       The valid time is time when the error is bigger than a threshhold for the 
+                       first time.
+                       """,
+                       key=f"{key}__st_all_difference_measures__vt"):
+            st.markdown("First time, when the error is bigger than the error threshold.")
+            st_show_valid_times_vs_error_threshold(y_pred_traj,
+                                                   y_true_traj,
+                                                   dt=dt)
 
 
 if __name__ == "__main__":
