@@ -17,10 +17,10 @@ import src.streamlit_src.app_fragments.preprocess_data as preproc
 import src.streamlit_src.app_fragments.raw_data as raw
 
 if __name__ == '__main__':
-    st.set_page_config("Reservoir Computing Viewer", page_icon="⚡")
+    st.set_page_config("Reservoir Computing", page_icon="⚡")
 
     with st.sidebar:
-        st.header("Reservoir Computing")
+        st.header("Reservoir Computing for Time Series Prediction")
 
         status_container = st.container()
 
@@ -286,7 +286,7 @@ if __name__ == '__main__':
         status_name = "build_bool"
         if status_dict[status_name]:
 
-            st.markdown("Explore the Echo State Network architecture.")
+            st.markdown("Explore the Reservoir Computing architecture.")
             tabs = st.tabs(["Dimensions", "Input matrix", "Network"])
             with tabs[0]:
                 st.markdown("**Layer dimensions:**")
@@ -317,7 +317,7 @@ if __name__ == '__main__':
             with st.expander("More info ..."):
                 st.write(
                     "During training, the true training data and the fitted data should be very "
-                    "similar. Otherwise the Echo State Network prediction is very likely to fail.")
+                    "similar. Otherwise the RC prediction is very likely to fail.")
 
             plot_tab, measure_tab, difference_tab = st.tabs(["Plot", "Measures", "Difference"])
 
@@ -341,7 +341,7 @@ if __name__ == '__main__':
 
             pred_data_dict = {"true": y_pred_true,
                               "pred": y_pred}
-            st.markdown("Compare the Echo State Network **prediction** with the **true data**.")
+            st.markdown("Compare the Reservoir Computing **prediction** with the **true data**.")
             plot_tab, measure_tab, difference_tab = st.tabs(["Plot", "Measures", "Difference"])
             with plot_tab:
                 plot.st_all_timeseries_plots(pred_data_dict, key="predict")
@@ -360,7 +360,7 @@ if __name__ == '__main__':
         with more_tab:
             status_name = "predict_bool"
             if status_dict[status_name]:
-                st.markdown("Explore internal quantities of the Echo State Network. ")
+                st.markdown("Explore internal quantities of the Reservoir Computer. ")
 
                 tabs = st.tabs(["Internal reservoir states",
                                 "W_out and R_gen",
