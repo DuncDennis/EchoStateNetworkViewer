@@ -127,7 +127,11 @@ if __name__ == '__main__':
         status_name = "train_bool"
         try:
             if esnutils.check_if_ready_to_progress(status_dict, status_name):
-                if st.checkbox("Perform training", key="Train Checkbox"):
+                if st.checkbox("Perform training",
+                               key="Train Checkbox",
+                               help="Drive the reservoir with training data and fit the "
+                                    "(generalized) reservoir states to the next data step."
+                               ):
                     y_train_fit, y_train_true, res_train_dict, esn_obj = esn.train_return_res(
                         esn_obj,
                         x_train,
@@ -146,7 +150,10 @@ if __name__ == '__main__':
         status_name = "predict_bool"
         try:
             if esnutils.check_if_ready_to_progress(status_dict, status_name):
-                if st.checkbox("Perform prediction", key="Predict Checkbox"):
+                if st.checkbox("Perform prediction",
+                               key="Predict Checkbox",
+                               help="Synchronize the trained reservoir with real data and then "
+                                    "predict the following steps. "):
                     y_pred, y_pred_true, res_pred_dict, esn_obj = esn.predict_return_res(esn_obj,
                                                                                          x_pred,
                                                                                          t_pred_sync)

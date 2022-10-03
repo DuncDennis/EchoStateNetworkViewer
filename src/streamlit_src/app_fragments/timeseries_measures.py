@@ -493,25 +493,43 @@ def st_all_data_measures(data_dict: dict[str, np.ndarray], dt: float = 1.0, key:
     """
 
     if st.checkbox("Consecutive extrema",
+                   help=
+                   r"""
+                   For each dimension, plot the values of consecutive extrema as a 2D-scatter 
+                   plot. 
+                   """,
                    key=f"{key}__st_all_data_measures__ce"):
         st.markdown("**Plot consecutive minima or maxima for individual dimensions:**")
         st_extrema_map(data_dict,
                        key=f"{key}__st_all_data_measures")
     utils.st_line()
     if st.checkbox("Statistical measures",
+                   help=
+                   r"""
+                   Select and calculate a statistical measure for each data dimension. 
+                   """,
                    key=f"{key}__st_all_data_measures__sm"):
-        st.markdown("**Plot the standard deviation, variance, mean or median of the time series:**")
+        st.markdown("**Plot the standard deviation, variance, mean or median of the time "
+                    "series:**")
         st_statistical_measures(data_dict,
                                 key=f"{key}__st_all_data_measures",
                                 x_label="system dimension")
     utils.st_line()
     if st.checkbox("Histogram",
+                   help=
+                   r"""
+                   Plot a histogram of values for each dimension in the data. 
+                   """,
                    key=f"{key}__st_all_data_measures__hist"):
         st.markdown("**Plot the value histogram for individual dimensions:**")
         st_histograms(data_dict,
                       key=f"{key}__st_all_data_measures")
     utils.st_line()
     if st.checkbox("Power spectrum",
+                   help=
+                   r"""
+                   Plot the power spectrum of the data. 
+                   """,
                    key=f"{key}__st_all_data_measures__ps"):
         st.markdown("**Plot the mean or dimension resolved power spectrum:**")
         st_power_spectrum(data_dict,
@@ -519,18 +537,40 @@ def st_all_data_measures(data_dict: dict[str, np.ndarray], dt: float = 1.0, key:
                           key=f"{key}__st_all_data_measures")
     utils.st_line()
     if st.checkbox("Mean frequency",
+                   help=
+                   r"""
+                   Plot the mean frequency for each dimension. 
+                   """,
                    key=f"{key}__st_all_data_measures__mf"):
         st.markdown("**Plot the mean frequency for each dimension:**")
         st_mean_frequency(data_dict,
                           dt=dt)
     utils.st_line()
     if st.checkbox("Lyapunov from data",
+                   help=
+                   r"""
+                   Calculate the lyapunov exponent from the data by measuring the sloap of the 
+                   logarithmic trajectory divergence in the data. 
+                   """,
                    key=f"{key}__st_all_data_measures__ledata"):
 
         st.markdown("**Plot the logarithmic trajectory divergence from data.**")
         with st.expander("More info ..."):
-            st.write("The algorithm is based on the Rosenstein algorithm. Original Paper: Rosenstein et. al. (1992).")
+            st.write("The algorithm is based on the Rosenstein algorithm. Original Paper: "
+                     "Rosenstein et. al. (1992).")
             st.write("The sloap of the linear fit represents the largest Lyapunov exponent.")
+            st.markdown(
+                r"""
+                **Outline of algorithm:**
+                - Find for each data point (*A*) the "*Neighbours to check*" nearest neighbours by 
+                    $L_2$ norm. 
+                - Get the closest neighbour (*B*) that is also minimally "*Min index difference*" 
+                    time steps apart. 
+                - For the original data point *A* and its neighbour *B* measure how fast the 
+                    trajectories diverge. I.e. measure the $L_2$ distance $d(t)$ between both 
+                    points. The sloap of the logarithm of $d(t)$ devided by the time step $dt$
+                    is the lyapunov exponent measurement. 
+                """)
         st_largest_lyapunov_from_data(data_dict,
                                       dt=dt,
                                       key=f"{key}__st_all_data_measures")

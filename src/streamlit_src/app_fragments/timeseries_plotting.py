@@ -229,8 +229,12 @@ def st_all_timeseries_plots(time_series_dict: dict[str, np.ndarray],
     """
     if st.checkbox("Attractor",
                    key=f"{key}__st_all_plots__attr",
-                   help="If timeseries is 1D: 2D time delay plot. If 2D or 3D: trajectory. If "
-                        "ND where N>3: As a colored array vs time."):
+                   help=
+                   r"""
+                   - If time series is 1D: Plot a 2D time delay plot. 
+                   - If timeseries is 2D or 3D: Plot the trajectory. 
+                   - If timeseries is ND where N>3: Plot time series as a colored array vs time. 
+                   """):
         st_default_simulation_plot_dict(time_series_dict)
 
     utils.st_line()

@@ -375,6 +375,7 @@ def st_basic_esn_build(key: str | None = None) -> dict[str, Any]:
 
     basic_build_args["r_to_r_gen_opt"] = st.selectbox(label_mapper['r_to_r_gen_opt'],
                                                       R_TO_R_GEN_TYPES,
+                                                      index=2,
                                                       help=label_mapper_help["r_to_r_gen_opt"],
                                                       key=f"{key}__st_basic_esn_build__rrgen")
 
@@ -385,6 +386,7 @@ def st_basic_esn_build(key: str | None = None) -> dict[str, Any]:
 
     basic_build_args["node_bias_opt"] = st.selectbox(label_mapper['node_bias_opt'],
                                                      BIAS_TYPES,
+                                                     index=1,
                                                      help=label_mapper_help["node_bias_opt"],
                                                      key=f"{key}__st_basic_esn_build__nbo")
 
