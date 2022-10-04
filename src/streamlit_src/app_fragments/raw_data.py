@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 import streamlit as st
 
 from src.streamlit_src.app_fragments import system_simulation as syssim
-from src.streamlit_src.app_fragments import esn_app_utilities as esnutils
 
 
 def st_raw_data_source(key: str | None = None
@@ -72,21 +72,36 @@ def st_upload_data(key: str | None = None) -> np.ndarray | None:
         Either the data as a np.ndarray of shape (timesteps, dimension) or None.
     """
 
-    help_text = """
-                The file has to be a 2D numpy array saved as a \".npy\" file of the shape:
-                (nr of time steps,  data dimension). 
+    help_text = r"""
+                The file either is a:
+                - .csv-file: Then each column represents a data dimension and every row is a 
+                    time step. The csv file should not have headers. 
+                - .npy-file: The saved numpy array should have a 2D shape like (nr of time steps, 
+                    data dimension).
                 """
 
     data = st.file_uploader("Choose a file",
-                            type="npy",
+                            type=["npy", "csv"],
                             accept_multiple_files=False,
                             key=f"{key}__st_upload_data__upload",
                             help=help_text
                             )
     if data is not None:
-        data = np.load(data)
+        filetype = data.name.split(".")[-1]
+        if filetype == "csv":
+            df = pd.read_csv(data, header=None)
+            data = df.values
+        elif filetype == "npy":
+            data = np.load(data)
+        else:
+            raise ValueError(f"This file type: {filetype} is not accounted for. ")
+        data = data.astype("float")
+
+        if np.isnan(data).any():
+            raise ValueError("Data contains non-numeric values.")
+
         data_shape = data.shape
-        data_dtype = data.dtype
+        # data_dtype = data.dtype
         # st.markdown(f"Data shape: {data_shape}")
         # st.markdown(f"Data dtype: {data_dtype}")
         if len(data_shape) != 2:

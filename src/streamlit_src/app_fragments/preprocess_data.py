@@ -20,10 +20,20 @@ def st_get_scale_shift_params(key: str | None = None) -> tuple[float, float] | N
         Either None or two floats The first being the scale and the second being the shift along
         all dimensions.
     """
+
+    help_text = r"""
+                Scale and shift the data. 
+                - scale: This defines the $\text{std}$ along each dimension of the data. 
+                - mean: This defines the $\text{mean}$ along each dimension of the data. 
+                
+                By default $\text{std} = 1$ and $\text{mean} = 0$, which corresponds to 
+                centered and normalized data. 
+                """
+
     with st.expander("Scale and shift: "):
         if st.checkbox("Scale and shift",
                        key=f"{key}__st_preprocess_simulation__normcenter_check",
-                       help="Use this to scale and center the data. "):
+                       help=help_text):
             left, right = st.columns(2)
             with left:
                 scale = st.number_input("scale", value=1.0, min_value=0.0, step=0.1, format="%f",

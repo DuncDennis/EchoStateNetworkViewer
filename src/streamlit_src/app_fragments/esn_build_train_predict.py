@@ -60,12 +60,12 @@ ESN_TYPING = Any
 
 
 def st_select_split_up_relative(total_steps: int,
-                                default_t_train_disc_rel: int = 100,
-                                default_t_train_sync_rel: int = 100,
+                                default_t_train_disc_rel: int = 500,
+                                default_t_train_sync_rel: int = 500,
                                 default_t_train_rel: int = 5000,
                                 default_t_pred_disc_rel: int = 500,
-                                default_t_pred_sync_rel: int = 100,
-                                default_t_pred_rel: int = 2000,
+                                default_t_pred_sync_rel: int = 500,
+                                default_t_pred_rel: int = 3000,
                                 key: str | None = None,
                                 ) -> tuple[int, int, int, int, int, int] | None:
     """Streamlit elements train discard, train sync, train, pred discard, pred sync and pred.

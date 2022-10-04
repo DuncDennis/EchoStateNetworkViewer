@@ -164,7 +164,7 @@ if __name__ == '__main__':
                             t_train_sync,
                             return_res_states=False
                             )
-
+                        esn_obj = copy.deepcopy(esn_obj)
                     status_dict[status_name] = True
             else:
                 st.info(esnutils.create_needed_status_string(status_dict, status_name))
@@ -187,15 +187,14 @@ if __name__ == '__main__':
                             x_pred,
                             t_pred_sync,
                             return_res_states=True)
+                        esn_obj = copy.deepcopy(esn_obj)
                     else:
                         y_pred, y_pred_true, esn_obj = esn.predict(
                             esn_obj,
                             x_pred,
                             t_pred_sync,
                             return_res_states=False)
-
-                    esn_obj = copy.deepcopy(
-                        esn_obj)  # needed for the streamlit caching to work correctly.
+                        esn_obj = copy.deepcopy(esn_obj)
                     status_dict[status_name] = True
             else:
                 st.info(esnutils.create_needed_status_string(status_dict, status_name))
