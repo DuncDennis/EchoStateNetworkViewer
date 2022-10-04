@@ -32,6 +32,23 @@ if __name__ == '__main__':
                        "train_bool": False,
                        "predict_bool": False}
 
+        utils.st_line()
+        # Advanced mode:
+        advanced_mode = False
+        if st.checkbox("🚧 Advanced features",
+                       help=
+                       r"""
+                       If checked, enable experimental advanced features:
+                       - Show settings for an additional reservoir state post-processing layer
+                            in the [🛠️ Build RC] section. 
+                       - Enable a tab [🔬 Look-under-hood] to view and measure some quantities 
+                            of the internal reservoir states. 
+                        
+                       Note: Some of the new features are not explained or tested. 
+                       """,
+                       key="advanced_features"):
+            advanced_mode = True
+
         # Random seed:
         utils.st_line()
         st.header("1. 🌱 Random seed: ")
@@ -75,13 +92,7 @@ if __name__ == '__main__':
                 total_steps = preproc_data.shape[0]
                 split_out = \
                     esn.st_select_split_up_relative(
-                        total_steps=total_steps,
-                        default_t_train_disc_rel=2500,
-                        default_t_train_sync_rel=200,
-                        default_t_train_rel=5000,
-                        default_t_pred_disc_rel=2500,
-                        default_t_pred_sync_rel=200,
-                        default_t_pred_rel=5000)
+                        total_steps=total_steps)
                 if split_out is not None:
                     status_dict[status_name] = True
                     section_names = ["train disc", "train sync", "train",
@@ -103,12 +114,18 @@ if __name__ == '__main__':
         try:
             if esnutils.check_if_ready_to_progress(status_dict, status_name):
                 # esn_type = esn.st_select_esn_type()
-                esn_type = "ESN_normal"
+                if advanced_mode:
+                    esn_type = "ESN_r_process"
+                else:
+                    esn_type = "ESN_normal"
+
                 with st.expander("Basic parameters: "):
                     basic_build_args = esn.st_basic_esn_build()
                 with st.expander("Network parameters: "):
                     build_args = basic_build_args | esn.st_network_build_args()
-
+                if esn_type == "ESN_r_process":
+                    with st.expander("Reservoir post-process layer:"):
+                        build_args = build_args | esn.st_esn_r_process_args(build_args["r_dim"])
                 x_dim = preproc_data.shape[1]
                 esn_obj = esn.build(esn_type,
                                     seed=seed,
@@ -132,12 +149,22 @@ if __name__ == '__main__':
                                help="Drive the reservoir with training data and fit the "
                                     "(generalized) reservoir states to the next data step."
                                ):
-                    y_train_fit, y_train_true, res_train_dict, esn_obj = esn.train_return_res(
-                        esn_obj,
-                        x_train,
-                        t_train_sync,
-                        )
-                    esn_obj = copy.deepcopy(esn_obj)
+                    if advanced_mode:
+                        y_train_fit, y_train_true, esn_obj, res_train_dict = esn.train(
+                            esn_obj,
+                            x_train,
+                            t_train_sync,
+                            return_res_states=True
+                            )
+                        esn_obj = copy.deepcopy(esn_obj)
+                    else:
+                        y_train_fit, y_train_true, esn_obj = esn.train(
+                            esn_obj,
+                            x_train,
+                            t_train_sync,
+                            return_res_states=False
+                            )
+
                     status_dict[status_name] = True
             else:
                 st.info(esnutils.create_needed_status_string(status_dict, status_name))
@@ -154,9 +181,19 @@ if __name__ == '__main__':
                                key="Predict Checkbox",
                                help="Synchronize the trained reservoir with real data and then "
                                     "predict the following steps. "):
-                    y_pred, y_pred_true, res_pred_dict, esn_obj = esn.predict_return_res(esn_obj,
-                                                                                         x_pred,
-                                                                                         t_pred_sync)
+                    if advanced_mode:
+                        y_pred, y_pred_true, esn_obj, res_pred_dict = esn.predict(
+                            esn_obj,
+                            x_pred,
+                            t_pred_sync,
+                            return_res_states=True)
+                    else:
+                        y_pred, y_pred_true, esn_obj = esn.predict(
+                            esn_obj,
+                            x_pred,
+                            t_pred_sync,
+                            return_res_states=False)
+
                     esn_obj = copy.deepcopy(
                         esn_obj)  # needed for the streamlit caching to work correctly.
                     status_dict[status_name] = True
@@ -171,19 +208,6 @@ if __name__ == '__main__':
         with status_container:
             esnutils.st_write_status(status_dict)
 
-        # MORE
-        st.header("More: ")
-
-        # Experimental advanced mode:
-        advanced_mode = False
-        if st.checkbox("🚧 Advanced features",
-                       help="If checked, there is an additional tab with advanced features "
-                            "that let you look under the hood of the esn. These functions are"
-                            "to be used with care, since they are not 100% tested and explained.",
-                       key="advanced_features"):
-            advanced_mode = True
-
-        # with st.expander("Source and contact: "):
         st.markdown(
             r"""
             **Authors:**

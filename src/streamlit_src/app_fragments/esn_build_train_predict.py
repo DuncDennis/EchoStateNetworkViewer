@@ -17,9 +17,11 @@ def esn_hash(obj):
     return hash((type(obj),) + tuple(items))
 
 
-ESN_DICT = {"ESN_normal": esn.ESN_normal,
-            "ESN_pca": esn.ESN_pca,
-            }
+ESN_DICT = {
+    "ESN_normal": esn.ESN_normal,
+    # "ESN_pca": esn.ESN_pca,
+    "ESN_r_process": esn.ESN_r_process,
+}
 
 ESN_HASH_FUNC = {esn._ResCompCore: esn_hash}
 
@@ -58,12 +60,12 @@ ESN_TYPING = Any
 
 
 def st_select_split_up_relative(total_steps: int,
-                                default_t_train_disc_rel: int = 1000,
-                                default_t_train_sync_rel: int = 300,
-                                default_t_train_rel: int = 2000,
-                                default_t_pred_disc_rel: int = 1000,
-                                default_t_pred_sync_rel: int = 300,
-                                default_t_pred_rel: int = 5000,
+                                default_t_train_disc_rel: int = 100,
+                                default_t_train_sync_rel: int = 100,
+                                default_t_train_rel: int = 5000,
+                                default_t_pred_disc_rel: int = 500,
+                                default_t_pred_sync_rel: int = 100,
+                                default_t_pred_rel: int = 2000,
                                 key: str | None = None,
                                 ) -> tuple[int, int, int, int, int, int] | None:
     """Streamlit elements train discard, train sync, train, pred discard, pred sync and pred.
@@ -273,13 +275,14 @@ def st_basic_esn_build(key: str | None = None) -> dict[str, Any]:
     """
 
     label_mapper = {"r_dim": "Reservoir dimension",
-                    "r_to_r_gen_opt": "R-to-Rgen function",
+                    "r_to_r_gen_opt": "Readout function",
                     "act_fct_opt": "Activation function",
                     "node_bias_opt": "Node bias option",
                     "bias_scale": "Node bias scale",
                     "leak_factor": "Leaky RC factor",
                     "w_in_opt": "W_in option",
                     "w_in_scale": "W_in scale",
+                    "input_noise_scale": "X_train noise scale",
                     "log_reg_param": "Log of regularization parameter",
                     }
 
@@ -354,6 +357,14 @@ def st_basic_esn_build(key: str | None = None) -> dict[str, Any]:
                          "w_in_scale":      r"""
                                             See "W_in option".
                                             """,
+                         "input_noise_scale":   r"""
+                                                Optionally add noise to the driving signal 
+                                                during train-synchronization and training. There
+                                                is no noise added to the target of the fit, i.e. 
+                                                the input one time step shifted. 
+                                                This has a similar effect than choosing a lower 
+                                                regularization parameter. 
+                                                """,
                          "log_reg_param":
                                     r"""
                                     Specify the regularization parameter for Ridge regression. 
@@ -416,6 +427,13 @@ def st_basic_esn_build(key: str | None = None) -> dict[str, Any]:
                                                      step=0.1,
                                                      help=label_mapper_help["w_in_scale"],
                                                      key=f"{key}__st_basic_esn_build__winsc")
+
+    basic_build_args["input_noise_scale"] = st.number_input(
+        label_mapper['input_noise_scale'],
+        value=0.0,
+        format="%f",
+        help=label_mapper_help["input_noise_scale"],
+        key=f"{key}__st_basic_esn_build__inpnoisescale")
 
     log_reg_param = st.number_input(label_mapper['log_reg_param'],
                                     value=-7.,
@@ -499,79 +517,168 @@ def st_network_build_args(key: str | None = None) -> dict[str, object]:
     return network_build_args
 
 
-@st.cache(hash_funcs=ESN_HASH_FUNC, allow_output_mutation=False,
-          max_entries=utils.MAX_CACHE_ENTRIES)
-def train_return_res(esn_obj: ESN_TYPING,
-                     x_train: np.ndarray,
-                     t_train_sync: int,
-                     ) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray], ESN_TYPING]:
-    """Train the esn_obj with a given x_train and t_train-sync and return internal reservoir states.
+def st_esn_r_process_args(r_dim: int,
+                          key: str | None = None) -> dict[str, object]:
+    """Streamlit elements to specify the additional settings of ESN_r_process.
 
-    TODO: check when to use this func and when to use train.
+    Args:
+        key: Provide a unique key if this streamlit element is used multiple times.
+
+    Returns:
+        A dictionary containing the ESN_r_process build args.
+    """
+
+    st.markdown("**Post process the reservoir states acquired during training.** "
+                "This adds a layer: ")
+    st.markdown(r"$\text{Input} \rightarrow \text{Reservoir} \rightarrow \text{Post Processing}"
+                r"\rightarrow \text{Readout} \rightarrow \text{Output}$")
+
+    label_mapper = {
+        "center_r_train": "Center",
+        "rescale_r_train": "Rescale",
+        "perform_pca": "PCA transform",
+        "pca_components": "Nr. of Principle Components",
+    }
+
+    label_mapper_help = {
+        "center_r_train":
+            r"""
+            Center the reservoir states after the training so that the $\text{mean}$ along every 
+            dimension is 0. 
+            """,
+        "rescale_r_train":
+            r"""
+            Rescale the reservoir states after training so that the $\text{std}$ along every 
+            dimension is 1. 
+            """,
+        "perform_pca":
+            r"""
+            PCA transform the reservoir states acquired during training. 
+            """,
+    }
+
+    esn_r_process_build_args = {}
+
+    esn_r_process_build_args["center_r_train"] = st.checkbox(label_mapper['center_r_train'],
+                                                             value=False,
+                                                             help=label_mapper_help['center_r_train'],
+                                                             key=f"{key}__st_esn_r_process_build_args__cent")
+
+    esn_r_process_build_args["rescale_r_train"] = st.checkbox(label_mapper['rescale_r_train'],
+                                                              value=False,
+                                                              help=label_mapper_help[
+                                                                  'rescale_r_train'],
+                                                              key=f"{key}__st_esn_r_process_build_args__resc")
+
+    esn_r_process_build_args["perform_pca"] = st.checkbox(label_mapper['perform_pca'],
+                                                          value=False,
+                                                          help=label_mapper_help['perform_pca'],
+                                                          key=f"{key}__st_esn_r_process_build_args__pca")
+
+    if esn_r_process_build_args["perform_pca"]:
+        esn_r_process_build_args["pca_components"] = int(st.number_input(label_mapper['pca_components'],
+                                                                         value=r_dim,
+                                                                         step=1,
+                                                                         key=f"{key}__st_esn_r_process_build_args__pca_components"))
+
+        esn_r_process_build_args["center_pca_input"] = True
+        # esn_r_process_build_args["center_pca_input"] = st.checkbox(label_mapper['center_pca_input'],
+        #                                                            value=True,
+        #                                                            key=f"{key}__st_esn_r_process_build_args__centpca")
+
+    return esn_r_process_build_args
+
+
+@st.cache(hash_funcs=ESN_HASH_FUNC,
+          allow_output_mutation=False,
+          max_entries=utils.MAX_CACHE_ENTRIES)
+def train(esn_obj: ESN_TYPING,
+          x_train: np.ndarray,
+          t_train_sync: int,
+          return_res_states: bool = True
+          ) -> tuple[np.ndarray, np.ndarray, ESN_TYPING] | \
+                          tuple[np.ndarray, np.ndarray, ESN_TYPING, dict[str, np.ndarray]]:
+    """Train the esn_obj with a given x_train and t_train-sync and results.
 
     Args:
         esn_obj: The esn_obj, that has a train method.
         x_train: The np.ndarray of shape (t_train_sync_steps + t_train_steps, sys_dim)
         t_train_sync: The number of time steps used for syncing the esn before training.
+        return_res_states: If true return also a dictionary containing the reservoir states.
 
     Returns:
-        Tuple with the fitted output, the real output and reservoir dictionary containing states
-        for r_act_fct_inp, r_internal, r_input, r, r_gen, and the esn_obj.
+        Tuple with the fitted output, the real output and esn_obj.
+        If return_res_states is True: also return a reservoir dictionary containing states
+        for r_act_fct_inp, r_internal, r_input, r, r_gen.
     """
     x_train = x_train.copy()
     esn_obj.train(x_train,
                   sync_steps=t_train_sync,
                   save_y_train=True,
                   save_out=True,
-                  save_res_inp=True,
-                  save_r_internal=True,
-                  save_r=True,
-                  save_r_gen=True
+                  save_res_inp=return_res_states,
+                  save_r_internal=return_res_states,
+                  save_r=return_res_states,
+                  save_r_gen=return_res_states
                   )
 
     y_train_true = esn_obj.get_y_train()
     y_train_fit = esn_obj.get_out()
 
-    res_state_dict = {}
-    res_state_dict["r_act_fct_inp"] = esn_obj.get_act_fct_inp()
-    res_state_dict["r_internal"] = esn_obj.get_r_internal()
-    res_state_dict["r_input"] = esn_obj.get_res_inp()
-    res_state_dict["r"] = esn_obj.get_r()
-    res_state_dict["r_gen"] = esn_obj.get_r_gen()
+    if return_res_states:
+        res_state_dict = {}
+        res_state_dict["r_act_fct_inp"] = esn_obj.get_act_fct_inp()
+        res_state_dict["r_internal"] = esn_obj.get_r_internal()
+        res_state_dict["r_input"] = esn_obj.get_res_inp()
+        res_state_dict["r"] = esn_obj.get_r()
+        res_state_dict["r_gen"] = esn_obj.get_r_gen()
 
-    return y_train_fit, y_train_true, res_state_dict, esn_obj
+        return y_train_fit, y_train_true, esn_obj, res_state_dict
+
+    else:
+        return y_train_fit, y_train_true, esn_obj
 
 
-@st.cache(hash_funcs=ESN_HASH_FUNC, allow_output_mutation=False,
+@st.cache(hash_funcs=ESN_HASH_FUNC,
+          allow_output_mutation=False,
           max_entries=utils.MAX_CACHE_ENTRIES)
-def predict_return_res(esn_obj: ESN_TYPING, x_pred: np.ndarray, t_pred_sync: int
-                       ) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray], ESN_TYPING]:
-    """Predict with the esn_obj with a given x_pred and x_pred_sync and return internal reservoir states.
-
-    TODO: check when to use this func and when to use predict.
+def predict(esn_obj: ESN_TYPING,
+            x_pred: np.ndarray,
+            t_pred_sync: int,
+            return_res_states: bool = True
+            ) -> tuple[np.ndarray, np.ndarray, ESN_TYPING] | \
+                 tuple[np.ndarray, np.ndarray, ESN_TYPING, dict[str, np.ndarray]]:
+    """Predict with the esn_obj with a given x_pred and x_pred_sync and return results.
 
     Args:
         esn_obj: The esn_obj, that has a predict method.
         x_pred: The np.ndarray of shape (t_pred_sync_steps + t_pred_steps, sys_dim)
         t_pred_sync: The number of time steps used for syncing the esn before prediction.
+        return_res_states: If true return also a dictionary containing the reservoir states.
 
     Returns:
-        Tuple with the fitted output, the real output and reservoir dictionary containing states
-        for r_act_fct_inp, r_internal, r_input, r, r_gen, and the esn_obj.
+        Tuple with the predicted output, the real output and esn_obj.
+        If return_res_states is True: also return a reservoir dictionary containing states
+        for r_act_fct_inp, r_internal, r_input, r, r_gen.
     """
     x_pred = x_pred.copy()
+
     y_pred, y_pred_true = esn_obj.predict(x_pred,
                                           sync_steps=t_pred_sync,
-                                          save_res_inp=True,
-                                          save_r_internal=True,
-                                          save_r=True,
-                                          save_r_gen=True
+                                          save_res_inp=return_res_states,
+                                          save_r_internal=return_res_states,
+                                          save_r=return_res_states,
+                                          save_r_gen=return_res_states
                                           )
-    res_state_dict = {}
-    res_state_dict["r_act_fct_inp"] = esn_obj.get_act_fct_inp()
-    res_state_dict["r_internal"] = esn_obj.get_r_internal()
-    res_state_dict["r_input"] = esn_obj.get_res_inp()
-    res_state_dict["r"] = esn_obj.get_r()
-    res_state_dict["r_gen"] = esn_obj.get_r_gen()
+    if return_res_states:
+        res_state_dict = {}
+        res_state_dict["r_act_fct_inp"] = esn_obj.get_act_fct_inp()
+        res_state_dict["r_internal"] = esn_obj.get_r_internal()
+        res_state_dict["r_input"] = esn_obj.get_res_inp()
+        res_state_dict["r"] = esn_obj.get_r()
+        res_state_dict["r_gen"] = esn_obj.get_r_gen()
 
-    return y_pred, y_pred_true, res_state_dict, esn_obj
+        return y_pred, y_pred_true, esn_obj, res_state_dict
+
+    else:
+        return y_pred, y_pred_true, esn_obj

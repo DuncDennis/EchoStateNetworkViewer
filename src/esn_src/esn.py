@@ -16,7 +16,7 @@ from src.esn_src import utilities
 
 class _ResCompCore():
     """
-    TBD
+    Reservoir Computing base class.
     """
 
     def __init__(self):
@@ -35,7 +35,6 @@ class _ResCompCore():
         self._res_internal_update_fct = None
         self._inp_coupling_fct = None
         self._r_to_r_gen_fct = None
-        # self._r_gen_to_out_fct = lambda r_gen: self._w_out @ r_gen
 
         self._leak_factor = None
         self._node_bias = None
@@ -61,13 +60,20 @@ class _ResCompCore():
     def _r_gen_to_out_fct(self, r_gen: np.ndarray) -> np.ndarray:
         return self._w_out @ r_gen
 
-    def _res_update(self, x):
+    def _res_update(self, x: np.ndarray) -> None:
+        """Update the reservoir from r_i to r_(i+1), save the resulting reservoir state.
+
+        Args:
+            x: The input of shape (sys_dim, ).
+        """
+
         self._last_x = x
         self._last_res_inp = self._inp_coupling_fct(self._last_x)
         self._last_r_interal = self._res_internal_update_fct(self._last_r)
 
-        self._last_r = self._leak_factor * self._last_r + (1 - self._leak_factor) * self._act_fct(self._last_res_inp +
-                                                                     self._last_r_interal + self._node_bias)
+        self._last_r = self._leak_factor * self._last_r + (1 - self._leak_factor) * self._act_fct(
+            self._last_res_inp +
+            self._last_r_interal + self._node_bias)
 
     def _r_to_r_gen(self):
         self._last_r_gen = self._r_to_r_gen_fct(self._last_r, self._last_x)
@@ -78,7 +84,10 @@ class _ResCompCore():
     def _out_to_inp(self):
         return self._y_to_x_fct(self._last_x, self._last_y)
 
-    def drive(self, input, save_res_inp=False, save_r_internal=False, save_r=False, save_r_gen=False, save_out=False):
+    def drive(self, input, save_res_inp=False, save_r_internal=False, save_r=False,
+              save_r_gen=False, save_out=False) -> None:
+        """Drive the reservoir with an input, optionally save various reservoir and output states.
+        """
         steps = input.shape[0]
 
         if save_res_inp:
@@ -114,7 +123,18 @@ class _ResCompCore():
             r_gen_train.T @ r_gen_train + self._reg_param * np.eye(r_gen_train.shape[1]),
             r_gen_train.T @ y_train).T
 
-    def train_synced(self, x_train, y_train, save_y_train=False, **kwargs):
+    def train_synced(self, x_train, y_train, save_y_train=False, **kwargs) -> None:
+        """Train the synced reservoir.
+
+        Drive the reservoir with x_train, get the r_gen states corresponding to x_train,
+        and get _w_out by fitting the r_gen states to y_train.
+
+        Args:
+            x_train: The input array of shape (train_steps - 1, sys_dim).
+            y_train: The output array of shape (train_steps - 1, sys_dim).
+            save_y_train: If true, save the fitted y_train.
+            **kwargs:
+        """
         kwargs["save_r_gen"] = True
 
         save_out = False
@@ -133,7 +153,8 @@ class _ResCompCore():
         if save_out:
             self._saved_out = (self._w_out @ self._saved_r_gen.T).T
 
-    def loop(self, steps, save_res_inp=False, save_r_internal=False, save_r=False, save_r_gen=False, save_out=False):
+    def loop(self, steps, save_res_inp=False, save_r_internal=False, save_r=False,
+             save_r_gen=False, save_out=False):
         if save_res_inp:
             self._saved_res_inp = np.zeros((steps, self._r_dim))
         if save_r_internal:
@@ -228,6 +249,11 @@ class _ResCompCore():
         return self._saved_y_train
 
     def get_w_out(self):
+        """Return w_out matrix.
+
+        Returns: w_out matrix of shape (y_dim, r_gen_dim).
+
+        """
         return self._w_out
 
     def get_dimensions(self) -> tuple[int, int, int, int]:
@@ -480,62 +506,6 @@ class _add_network_update_fct():
     def return_avg_deg(self):
         return
 
-class _add_dyn_sys_update_fct():
-    """
-    Use a Dynamical System as res_internal_update_fct
-    SETS:
-        - self._res_internal_update_fct r -> r
-    """
-    def __init__(self):
-        self._dyn_sys_opt = None
-        self._dyn_sys_dt = None
-        self._dyn_sys_scale_factor = None
-        self._dyn_sys_other_params = None
-        self._dyn_sys_flag_synonyms = utilities._SynonymDict()
-        self._dyn_sys_flag_synonyms.add_synonyms(0, ["L96"])
-        self._dyn_sys_flag_synonyms.add_synonyms(1, ["KS"])
-
-    # def create_dyn_sys_upd_fct(self, dyn_sys_opt="L96", dyn_sys_dt=0.1, scale_factor=1.0, dyn_sys_other_params=(5., )):
-    def create_dyn_sys_upd_fct(self, dyn_sys_opt="L96", dyn_sys_dt=0.1, scale_factor=1.0, **dyn_sys_other_params):
-        if type(dyn_sys_opt) == str:
-            self._dyn_sys_opt = dyn_sys_opt
-            self._dyn_sys_dt = dyn_sys_dt
-            self._dyn_sys_scale_factor = scale_factor
-            self._dyn_sys_other_params = dyn_sys_other_params
-            dyn_sys_flag = self._dyn_sys_flag_synonyms.get_flag(dyn_sys_opt)
-            if dyn_sys_flag == 0:
-                # L96_force = dyn_sys_other_params[0]
-
-                if "L96_force" not in dyn_sys_other_params.keys():
-                    dyn_sys_other_params = {"L96_force": 0.0}
-
-                L96_force = dyn_sys_other_params["L96_force"]
-
-                def _lorenz_96(x):
-                    return simulations._lorenz_96(x, force=L96_force)
-
-                def f_L96(x):
-                    return simulations._runge_kutta(_lorenz_96, dyn_sys_dt, x)
-
-                self._res_internal_update_fct = lambda r: (f_L96(r)-r) * self._dyn_sys_scale_factor
-
-            elif dyn_sys_flag == 1:
-                # KS_system_size = dyn_sys_other_params[0]
-                if "KS_system_size" not in dyn_sys_other_params.keys():
-                    dyn_sys_other_params = {"KS_system_size": 20}
-                KS_system_size = dyn_sys_other_params["KS_system_size"]
-
-                def f_KS(x):
-                    return simulations._kuramoto_sivashinsky(self._r_dim, system_size=KS_system_size, dt=dyn_sys_dt,
-                                                             time_steps=2, starting_point=x)[-1]
-
-                self._res_internal_update_fct = lambda r: (f_KS(r) - r) * self._dyn_sys_scale_factor
-
-            # self._res_internal_update_fct = lambda r: self._dyn_sys_scale_factor * self._res_internal_update_fct(r)
-        else:
-            self._dyn_sys_opt = "CUSTOM"
-            self._res_internal_update_fct = dyn_sys_opt
-
 
 class _add_no_res_update_fct():
     """
@@ -543,6 +513,7 @@ class _add_no_res_update_fct():
     SETS:
         - self._res_internal_update_fct r -> r
     """
+
     def __init__(self):
         self._res_internal_update_fct = lambda r: np.zeros(r.shape)
 
@@ -553,6 +524,7 @@ class _add_basic_r_to_rgen():
     SETS:
     - self._r_to_r_gen_fct: r -> r_gen (any dimension)
     """
+
     def __init__(self):
 
         self._r_to_r_gen_opt = None
@@ -582,6 +554,7 @@ class _add_basic_r_to_rgen():
                     r_gen = np.copy(r).T
                     r_gen[::2] = r.T[::2] ** 2
                     return r_gen.T
+
                 self._r_to_r_gen_fct = temp
             elif r_to_r_gen_flag == 5:
                 self._r_to_r_gen_fct = lambda r, x: np.hstack((r, np.exp(r)))
@@ -597,12 +570,115 @@ class _add_basic_r_to_rgen():
         self._r_gen_dim = self._r_to_r_gen_fct(np.zeros(self._r_dim), None).shape[0]
 
 
+class _add_preprocess_r_to_rgen():
+    """
+    1. Scaler and/or center r_train.
+        - specify if you want to scale
+        - specify if you want to center
+    2. Add a pca transformation.
+        - specify the number of components
+        - specify if you want to center
+    """
+
+    def __init__(self):
+
+        self._r_to_r_gen_opt = None
+        self._r_to_r_gen_synonyms = utilities._SynonymDict()
+        self._r_to_r_gen_synonyms.add_synonyms(0, ["linear_r", "simple", "linear"])
+        self._r_to_r_gen_synonyms.add_synonyms(1, "linear_and_square_r")
+        self._r_to_r_gen_synonyms.add_synonyms(2, ["output_bias", "bias"])
+        self._r_to_r_gen_synonyms.add_synonyms(3, ["bias_and_square_r"])
+        self._r_to_r_gen_synonyms.add_synonyms(4, ["linear_and_square_r_alt"])
+        self._r_to_r_gen_synonyms.add_synonyms(5, ["exponential_r"])
+        self._r_to_r_gen_synonyms.add_synonyms(6, ["bias_and_exponential_r"])
+
+        self._r_train_std = None
+        self._r_train_mean = None
+
+        self._pca = None
+        self._pca_matrix = None
+        self._pca_input_mean = None
+
+    def set_r_train_preprocessing(self,
+                                  center_r_train: bool = False,
+                                  rescale_r_train: bool = False,
+                                  perform_pca: bool = False,
+                                  pca_components: int | None = None,
+                                  center_pca_input: bool = True,
+                                  ):
+        self.center_r_train = center_r_train
+        self.rescale_r_train = rescale_r_train
+        self.perform_pca = perform_pca
+        self.pca_components = pca_components
+        self.center_pca_input = center_pca_input
+
+    def set_r_to_r_gen_fct(self,
+                           r_train: np.ndarray,
+                           r_to_r_gen_opt="linear"
+                           ):
+        if type(r_to_r_gen_opt) == str:
+            self._r_to_r_gen_opt = r_to_r_gen_opt
+            r_to_r_gen_flag = self._r_to_r_gen_synonyms.get_flag(r_to_r_gen_opt)
+            if r_to_r_gen_flag == 0:
+                basic_rrgen_fct = lambda r, x: r
+            elif r_to_r_gen_flag == 1:
+                basic_rrgen_fct = lambda r, x: np.hstack((r, r ** 2))
+            elif r_to_r_gen_flag == 2:
+                basic_rrgen_fct = lambda r, x: np.hstack((r, 1))
+            elif r_to_r_gen_flag == 3:
+                basic_rrgen_fct = lambda r, x: np.hstack((np.hstack((r, r ** 2)), 1))
+            elif r_to_r_gen_flag == 4:
+                def temp(r, x):
+                    r_gen = np.copy(r).T
+                    r_gen[::2] = r.T[::2] ** 2
+                    return r_gen.T
+
+                basic_rrgen_fct = temp
+            elif r_to_r_gen_flag == 5:
+                basic_rrgen_fct = lambda r, x: np.hstack((r, np.exp(r)))
+            elif r_to_r_gen_flag == 6:
+                basic_rrgen_fct = lambda r, x: np.hstack((np.hstack((r, np.exp(r))), 1))
+        else:
+            self._r_to_r_gen_opt = "CUSTOM"
+            basic_rrgen_fct = r_to_r_gen_opt
+
+        if self.center_r_train:
+            self._r_train_mean = np.mean(r_train, axis=0)
+            r_train = r_train - self._r_train_mean
+        else:
+            self._r_train_mean = 0
+        if self.rescale_r_train:
+            self._r_train_scale = np.std(r_train, axis=0)
+            r_train = r_train/self._r_train_scale
+        else:
+            self._r_train_scale = 1
+        if self.perform_pca:
+            self._pca = decomposition.PCA(n_components=self.pca_components)
+            self._pca.fit(r_train)
+            self._pca_matrix = self._pca.components_
+            if self.center_pca_input:
+                self._pca_input_mean = np.mean(r_train, axis=0)
+            else:
+                self._pca_input_mean = 0
+
+            preprocess_fct = lambda r: self._pca_matrix @ (
+                        ((r - self._r_train_mean) / self._r_train_scale) - self._pca_input_mean)
+        else:
+            preprocess_fct = lambda r: (r - self._r_train_mean) / self._r_train_scale
+
+        self._r_to_r_gen_fct = lambda r, x: basic_rrgen_fct(preprocess_fct(r), x)
+
+        self._r_gen_dim = self._r_to_r_gen_fct(np.zeros(self._r_dim), np.zeros(self._x_dim)).shape[
+            0]
+
+
 class _add_model_r_to_rgen():
     """
     add r to r_gen behaviour with hybrid-output model
     SETS:
     - self._r_to_r_gen_fct: r -> r_gen (any dimension)
     """
+
     def __init__(self):
 
         self._r_to_r_gen_opt = None
@@ -616,9 +692,23 @@ class _add_model_r_to_rgen():
         self._r_to_r_gen_synonyms.add_synonyms(6, ["bias_and_exponential_r"])
 
         self.output_model = None
+        self.scale_shift_vector_output = None
 
-    def set_output_model(self, output_model):
-        self.output_model = output_model
+    def set_output_model(self,
+                         output_model: Callable[[np.ndarray], np.ndarray] | None = None,
+                         scale_shift_vector_output: tuple[np.ndarray, np.ndarray] | None = None,
+                         ):
+        """Set the output model, and add an optional scale_shift_vector.
+        """
+        if output_model is not None:
+            if scale_shift_vector_output is not None:
+                self.scale_shift_vector_output = scale_shift_vector_output
+                scale_vec, shift_vec = self.scale_shift_vector_output
+                self.output_model = lambda x: output_model((x - shift_vec)/scale_vec) * scale_vec + shift_vec
+            else:
+                self.output_model = output_model
+        else:
+            pass
 
     def set_r_to_r_gen_fct(self, r_to_r_gen_opt="linear"):
         if type(r_to_r_gen_opt) == str:
@@ -637,6 +727,7 @@ class _add_model_r_to_rgen():
                     r_gen = np.copy(r).T
                     r_gen[::2] = r.T[::2] ** 2
                     return r_gen.T
+
                 _r_to_r_gen_fct_no_model = temp
 
             elif r_to_r_gen_flag == 5:
@@ -648,9 +739,14 @@ class _add_model_r_to_rgen():
             self._r_to_r_gen_opt = "CUSTOM"
             _r_to_r_gen_fct_no_model = r_to_r_gen_opt
 
-        self._r_to_r_gen_fct = lambda r, x: np.hstack((_r_to_r_gen_fct_no_model(r, x), self.output_model(x)))
+        if self.output_model is not None:
+            self._r_to_r_gen_fct = lambda r, x: np.hstack(
+                (_r_to_r_gen_fct_no_model(r, x), self.output_model(x)))
+        else:
+            self._r_to_r_gen_fct = lambda r, x: _r_to_r_gen_fct_no_model(r, x)
 
-        self._r_gen_dim = self._r_to_r_gen_fct(np.zeros(self._r_dim), np.zeros(self._x_dim)).shape[0]
+        self._r_gen_dim = self._r_to_r_gen_fct(np.zeros(self._r_dim), np.zeros(self._x_dim)).shape[
+            0]
 
 
 class _add_pca_r_to_rgen():
@@ -659,6 +755,7 @@ class _add_pca_r_to_rgen():
     SETS:
     - self._r_to_r_gen_fct: r -> r_gen (any dimension)
     """
+
     def __init__(self):
 
         self._r_to_r_gen_opt = None
@@ -680,7 +777,10 @@ class _add_pca_r_to_rgen():
         self._input_data_mean = None
         self._matrix = None
 
-    def set_pca_components(self, pca_components, pca_comps_to_skip=0, norm_with_expl_var=False, centering_pre_trans=True):
+    def set_pca_components(self, pca_components,
+                           pca_comps_to_skip=0,
+                           norm_with_expl_var=False,
+                           centering_pre_trans=True):
         self._pca_components = pca_components
         self._pca_comps_to_skip = pca_comps_to_skip
         self._norm_with_expl_var = norm_with_expl_var
@@ -715,6 +815,7 @@ class _add_pca_r_to_rgen():
                     r_gen = np.copy(r).T
                     r_gen[::2] = r.T[::2] ** 2
                     return r_gen.T
+
                 _r_to_r_gen_fct_no_model = temp
             elif r_to_r_gen_flag == 5:
                 _r_to_r_gen_fct_no_model = lambda r, x: np.hstack((r, np.exp(r)))
@@ -729,7 +830,8 @@ class _add_pca_r_to_rgen():
 
         if self._centering_pre_trans:
             self._r_to_r_gen_fct = lambda r, x: _r_to_r_gen_fct_no_model(
-                ((r - self._input_data_mean)[np.newaxis, :] @ self._matrix)[0, self._pca_comps_to_skip:],
+                ((r - self._input_data_mean)[np.newaxis, :] @ self._matrix)[0,
+                self._pca_comps_to_skip:],
                 x)
         else:
             self._r_to_r_gen_fct = lambda r, x: _r_to_r_gen_fct_no_model(
@@ -765,7 +867,8 @@ class _add_pca_r_to_rgen():
         # else:
         #     self._r_to_r_gen_fct = lambda r, x: (_r_to_r_gen_fct_no_model(self._pca.transform(r[np.newaxis, :])[0, self._pca_comps_to_skip:], x))
 
-        self._r_gen_dim = self._r_to_r_gen_fct(np.zeros(self._r_dim), np.zeros(self._x_dim)).shape[0]
+        self._r_gen_dim = self._r_to_r_gen_fct(np.zeros(self._r_dim), np.zeros(self._x_dim)).shape[
+            0]
 
 
 class _add_centered_r_to_rgen():
@@ -774,6 +877,7 @@ class _add_centered_r_to_rgen():
     SETS:
     - self._r_to_r_gen_fct: r -> r_gen (any dimension)
     """
+
     def __init__(self):
 
         self._r_to_r_gen_opt = None
@@ -808,6 +912,7 @@ class _add_centered_r_to_rgen():
                     r_gen = np.copy(r).T
                     r_gen[::2] = r.T[::2] ** 2
                     return r_gen.T
+
                 _r_to_r_gen_fct_no_model = temp
             elif r_to_r_gen_flag == 5:
                 _r_to_r_gen_fct_no_model = lambda r, x: np.hstack((r, np.exp(r)))
@@ -967,11 +1072,11 @@ class _add_w_in():
 
             elif w_in_flag == 2:
                 self._w_in = np.random.uniform(low=-self._w_in_scale,
-                                           high=self._w_in_scale,
-                                           size=(self._r_dim, self._x_dim))
+                                               high=self._w_in_scale,
+                                               size=(self._r_dim, self._x_dim))
 
             elif w_in_flag == 3:
-                self._w_in = self._w_in_scale*np.random.randn(self._r_dim, self._x_dim)
+                self._w_in = self._w_in_scale * np.random.randn(self._r_dim, self._x_dim)
 
         else:
             self._w_in_opt = "CUSTOM"
@@ -984,6 +1089,7 @@ class _add_standard_input_coupling():
     SETS:
         - self._inp_coupling_fct
     """
+
     def __init__(self):
         self._inp_coupling_fct = lambda x: self._w_in @ x
 
@@ -995,6 +1101,7 @@ class _add_model_input_coupling():
     SETS:
         - self._inp_coupling_fct
     """
+
     def __init__(self):
 
         self._w_in_opt = None
@@ -1006,12 +1113,26 @@ class _add_model_input_coupling():
         self._w_in_flag_synonyms.add_synonyms(3, ["random_dense_gaussian"])
 
         self.input_model = None
-        self.model_to_network_factor = None
+        self.input_model_to_res_factor = None
+        self.scale_shift_vector_input = None
 
-    def set_input_model(self, input_model, model_to_network_factor=0.5):
-        self.input_model = input_model
-        self.model_to_network_factor = model_to_network_factor
-        self._inp_coupling_fct = lambda x: self._w_in @ np.hstack((x, self.input_model(x)))
+    def set_input_model(self,
+                        input_model: Callable[[np.ndarray], np.ndarray] | None = None,
+                        input_model_to_res_factor: float = 0.5,
+                        scale_shift_vector_input: tuple[np.ndarray, np.ndarray] | None = None):
+        if input_model is not None:
+            if self.scale_shift_vector_input is not None:
+                self.scale_shift_vector_input = scale_shift_vector_input
+                scale_vec, shift_vec = self.scale_shift_vector_input
+                self.input_model = lambda x: input_model((x - shift_vec) / scale_vec) * scale_vec + shift_vec
+            else:
+                self.input_model = input_model
+            self.input_model_to_res_factor = input_model_to_res_factor
+
+            self._inp_coupling_fct = lambda x: self._w_in @ np.hstack((x, self.input_model(x)))
+
+        else:
+            self._inp_coupling_fct = lambda x: self._w_in @ x
 
     def create_w_in(self, w_in_opt, w_in_scale=1.0):
         # self.logger.debug("Create w_in")
@@ -1020,39 +1141,51 @@ class _add_model_input_coupling():
             self._w_in_scale = w_in_scale
             self._w_in_opt = w_in_opt
             w_in_flag = self._w_in_flag_synonyms.get_flag(w_in_opt)
-            x_dim_inp_model = self.input_model(np.ones(self._x_dim)).size
-            x_dim_gen = x_dim_inp_model + self._x_dim
 
-            # print("x_dim_gen: ", x_dim_gen)
+            if self.input_model is not None:
+                x_dim_inp_model = self.input_model(np.ones(self._x_dim)).size
+                x_dim_gen = x_dim_inp_model + self._x_dim
+            else:
+                x_dim_gen = self._x_dim
 
             if w_in_flag == 0:
-
                 self._w_in = np.zeros((self._r_dim, x_dim_gen))
 
-                nr_res_nodes_connected_to_model = int(self.model_to_network_factor * self._r_dim)
-                nr_res_nodes_connected_to_raw = self._r_dim - nr_res_nodes_connected_to_model
+                if self.input_model is not None:
 
-                nodes_connected_to_raw = np.random.choice(np.arange(self._r_dim), size=nr_res_nodes_connected_to_raw,
-                                                          replace=False)
-                nodes_connected_to_raw = np.sort(nodes_connected_to_raw)
+                    nr_res_nodes_connected_to_model = int(self.input_model_to_res_factor * self._r_dim)
+                    nr_res_nodes_connected_to_raw = self._r_dim - nr_res_nodes_connected_to_model
 
-                for index in nodes_connected_to_raw:
-                    random_x_coord = np.random.choice(np.arange(self._x_dim))
-                    self._w_in[index, random_x_coord] = np.random.uniform(
-                        low=-self._w_in_scale,
-                        high=self._w_in_scale)
-                nodes_connected_to_model = np.delete(np.arange(self._r_dim), nodes_connected_to_raw)
-                for index in nodes_connected_to_model:
-                    random_x_coord = np.random.choice(np.arange(x_dim_inp_model))
-                    self._w_in[index, random_x_coord + self._x_dim] = np.random.uniform(
-                        low=-self._w_in_scale,
-                        high=self._w_in_scale)
+                    nodes_connected_to_raw = np.random.choice(np.arange(self._r_dim),
+                                                              size=nr_res_nodes_connected_to_raw,
+                                                              replace=False)
+                    nodes_connected_to_raw = np.sort(nodes_connected_to_raw)
+
+                    for index in nodes_connected_to_raw:
+                        random_x_coord = np.random.choice(np.arange(self._x_dim))
+                        self._w_in[index, random_x_coord] = np.random.uniform(
+                            low=-self._w_in_scale,
+                            high=self._w_in_scale)
+                    nodes_connected_to_model = np.delete(np.arange(self._r_dim),
+                                                         nodes_connected_to_raw)
+                    for index in nodes_connected_to_model:
+                        random_x_coord = np.random.choice(np.arange(x_dim_inp_model))
+                        self._w_in[index, random_x_coord + self._x_dim] = np.random.uniform(
+                            low=-self._w_in_scale,
+                            high=self._w_in_scale)
+                else:
+                    for i in range(self._r_dim):
+                        random_x_coord = np.random.choice(np.arange(x_dim_gen))
+                        self._w_in[i, random_x_coord] = np.random.uniform(
+                            low=-self._w_in_scale,
+                            high=self._w_in_scale)
+
             elif w_in_flag == 1:
                 raise Exception("Not implemented")
             elif w_in_flag == 2:
                 self._w_in = np.random.uniform(low=-self._w_in_scale,
-                                           high=self._w_in_scale,
-                                           size=(self._r_dim, x_dim_gen))
+                                               high=self._w_in_scale,
+                                               size=(self._r_dim, x_dim_gen))
             elif w_in_flag == 3:
                 self._w_in = self._w_in_scale * np.random.randn(self._r_dim, x_dim_gen)
         else:
@@ -1102,7 +1235,8 @@ class _add_same_model_input_output():
         self.input_model = input_model
         self.model_to_network_factor = model_to_network_factor
 
-        self._inp_coupling_fct = lambda x: self._w_in @ np.hstack((x, self.save_input_model_result(self.input_model, x)))
+        self._inp_coupling_fct = lambda x: self._w_in @ np.hstack(
+            (x, self.save_input_model_result(self.input_model, x)))
 
     def create_w_in(self, w_in_opt, w_in_scale=1.0):
         # self.logger.debug("Create w_in")
@@ -1180,10 +1314,12 @@ class _add_same_model_input_output():
             self._r_to_r_gen_opt = "CUSTOM"
             _r_to_r_gen_fct_no_model = r_to_r_gen_opt
 
-        self._r_to_r_gen_fct = lambda r, x: np.hstack((_r_to_r_gen_fct_no_model(r, x), self._last_input_model_results))
+        self._r_to_r_gen_fct = lambda r, x: np.hstack(
+            (_r_to_r_gen_fct_no_model(r, x), self._last_input_model_results))
 
-        r_to_r_gen_init = lambda r, x: np.hstack((_r_to_r_gen_fct_no_model(r, x), self.input_model(x)))
-        
+        r_to_r_gen_init = lambda r, x: np.hstack(
+            (_r_to_r_gen_fct_no_model(r, x), self.input_model(x)))
+
         self._r_gen_dim = r_to_r_gen_init(np.zeros(self._r_dim), np.zeros(self._x_dim)).shape[0]
 
 
@@ -1192,6 +1328,7 @@ class _add_standard_y_to_x():
     """
     Function from output to input for loop is identity
     """
+
     def __init__(self):
         self._y_to_x_fct = lambda x, y: y
 
@@ -1200,6 +1337,7 @@ class _add_y_diff_to_x():
     """
     Function from output to input where output is difference
     """
+
     def __init__(self):
         self._dt_difference = None
         self._y_to_x_fct = lambda x, y: x + y * self._dt_difference
@@ -1208,117 +1346,119 @@ class _add_y_diff_to_x():
         self._dt_difference = dt_difference
 
 
-class _add_preprocess_input_coupling():
-    """A class to add, which includes methods that can be used to prepreocess training data.
-
+class _add_preprocess_r_to_rgen():
     """
-    def __init__(self):
-        self.preprocess_offset = None
-        self.preprocess_scale_vector = None
-        self.noise_scale = None
-        self.noise_seed = None
-
-        self._inp_coupling_fct = lambda x: self._w_in @ ((x - self.preprocess_offset)/self.preprocess_scale_vector)
-
-    def calc_offset_and_scale(self, training_data):
-        self.preprocess_offset = np.mean(training_data, axis=0)
-        self.preprocess_scale_vector = np.std(training_data, axis=0)
-
-    def add_train_noise(self, training_data):
-        noise = np.random.randn(*(training_data.shape)) * self.noise_scale
-        return training_data + noise
-
-class _add_model_input_coupling_with_preprocess():
+    1. Scaler and/or center r_train.
+        - specify if you want to scale
+        - specify if you want to center
+    2. Add a pca transformation.
+        - specify the number of components
+        - specify if you want to center
     """
-    add model input coupling. Input -> W_in * (Input, model(Input)
-    used for Input Hybrid Reservoir Computing
-    SETS:
-        - self._inp_coupling_fct
-    """
+
     def __init__(self):
 
-        self._w_in_opt = None
-        self._w_in_scale = None
-        self._w_in_flag_synonyms = utilities._SynonymDict()
-        self._w_in_flag_synonyms.add_synonyms(0, ["random_sparse"])
-        self._w_in_flag_synonyms.add_synonyms(1, ["ordered_sparse"])
-        self._w_in_flag_synonyms.add_synonyms(2, ["random_dense_uniform"])
-        self._w_in_flag_synonyms.add_synonyms(3, ["random_dense_gaussian"])
+        self._r_to_r_gen_opt = None
+        self._r_to_r_gen_synonyms = utilities._SynonymDict()
+        self._r_to_r_gen_synonyms.add_synonyms(0, ["linear_r", "simple", "linear"])
+        self._r_to_r_gen_synonyms.add_synonyms(1, "linear_and_square_r")
+        self._r_to_r_gen_synonyms.add_synonyms(2, ["output_bias", "bias"])
+        self._r_to_r_gen_synonyms.add_synonyms(3, ["bias_and_square_r"])
+        self._r_to_r_gen_synonyms.add_synonyms(4, ["linear_and_square_r_alt"])
+        self._r_to_r_gen_synonyms.add_synonyms(5, ["exponential_r"])
+        self._r_to_r_gen_synonyms.add_synonyms(6, ["bias_and_exponential_r"])
 
-        self.input_model = None
-        self.model_to_network_factor = None
+        self._r_train_std = None
+        self._r_train_mean = None
 
-        self.preprocess_offset = None
-        self.preprocess_scale_vector = None
-        self.noise_scale = None
-        self.noise_seed = None
+        self._pca = None
+        self._pca_matrix = None
+        self._pca_input_mean = None
 
-    def calc_offset_and_scale(self, training_data):
-        self.preprocess_offset = np.mean(training_data, axis=0)
-        self.preprocess_scale_vector = np.std(training_data, axis=0)
+    def set_r_train_preprocessing(self,
+                                  center_r_train: bool = False,
+                                  rescale_r_train: bool = False,
+                                  perform_pca: bool = False,
+                                  pca_components: int | None = None,
+                                  center_pca_input: bool = True,
+                                  ):
+        self.center_r_train = center_r_train
+        self.rescale_r_train = rescale_r_train
+        self.perform_pca = perform_pca
+        self.pca_components = pca_components
+        self.center_pca_input = center_pca_input
 
-    def add_train_noise(self, training_data):
-        noise = np.random.randn(*(training_data.shape)) * self.noise_scale
-        return training_data + noise
+    def set_r_to_r_gen_fct(self,
+                           r_train: np.ndarray,
+                           r_to_r_gen_opt="linear"
+                           ):
+        if type(r_to_r_gen_opt) == str:
+            self._r_to_r_gen_opt = r_to_r_gen_opt
+            r_to_r_gen_flag = self._r_to_r_gen_synonyms.get_flag(r_to_r_gen_opt)
+            if r_to_r_gen_flag == 0:
+                basic_rrgen_fct = lambda r, x: r
+            elif r_to_r_gen_flag == 1:
+                basic_rrgen_fct = lambda r, x: np.hstack((r, r ** 2))
+            elif r_to_r_gen_flag == 2:
+                basic_rrgen_fct = lambda r, x: np.hstack((r, 1))
+            elif r_to_r_gen_flag == 3:
+                basic_rrgen_fct = lambda r, x: np.hstack((np.hstack((r, r ** 2)), 1))
+            elif r_to_r_gen_flag == 4:
+                def temp(r, x):
+                    r_gen = np.copy(r).T
+                    r_gen[::2] = r.T[::2] ** 2
+                    return r_gen.T
 
-    def set_input_model(self, input_model, model_to_network_factor=0.5):
-        self.input_model = input_model
-        self.model_to_network_factor = model_to_network_factor
-        self._inp_coupling_fct = lambda x: self._w_in @ np.hstack(((x - self.preprocess_offset)/self.preprocess_scale_vector,
-                                                                  (self.input_model(x) - self.preprocess_offset)/self.preprocess_scale_vector))
-
-    def create_w_in(self, w_in_opt, w_in_scale=1.0):
-        # self.logger.debug("Create w_in")
-
-        if type(w_in_opt) == str:
-            self._w_in_scale = w_in_scale
-            self._w_in_opt = w_in_opt
-            w_in_flag = self._w_in_flag_synonyms.get_flag(w_in_opt)
-            x_dim_inp_model = self.input_model(np.ones(self._x_dim)).size
-            x_dim_gen = x_dim_inp_model + self._x_dim
-
-            # print("x_dim_gen: ", x_dim_gen)
-
-            if w_in_flag == 0:
-
-                self._w_in = np.zeros((self._r_dim, x_dim_gen))
-
-                nr_res_nodes_connected_to_model = int(self.model_to_network_factor * self._r_dim)
-                nr_res_nodes_connected_to_raw = self._r_dim - nr_res_nodes_connected_to_model
-
-                nodes_connected_to_raw = np.random.choice(np.arange(self._r_dim), size=nr_res_nodes_connected_to_raw,
-                                                          replace=False)
-                nodes_connected_to_raw = np.sort(nodes_connected_to_raw)
-
-                for index in nodes_connected_to_raw:
-                    random_x_coord = np.random.choice(np.arange(self._x_dim))
-                    self._w_in[index, random_x_coord] = np.random.uniform(
-                        low=-self._w_in_scale,
-                        high=self._w_in_scale)
-                nodes_connected_to_model = np.delete(np.arange(self._r_dim), nodes_connected_to_raw)
-                for index in nodes_connected_to_model:
-                    random_x_coord = np.random.choice(np.arange(x_dim_inp_model))
-                    self._w_in[index, random_x_coord + self._x_dim] = np.random.uniform(
-                        low=-self._w_in_scale,
-                        high=self._w_in_scale)
-            elif w_in_flag == 1:
-                raise Exception("Not implemented")
-            elif w_in_flag == 2:
-                self._w_in = np.random.uniform(low=-self._w_in_scale,
-                                           high=self._w_in_scale,
-                                           size=(self._r_dim, x_dim_gen))
-            elif w_in_flag == 3:
-                self._w_in = self._w_in_scale * np.random.randn(self._r_dim, x_dim_gen)
+                basic_rrgen_fct = temp
+            elif r_to_r_gen_flag == 5:
+                basic_rrgen_fct = lambda r, x: np.hstack((r, np.exp(r)))
+            elif r_to_r_gen_flag == 6:
+                basic_rrgen_fct = lambda r, x: np.hstack((np.hstack((r, np.exp(r))), 1))
         else:
-            self._w_in_opt = "CUSTOM"
-            self._w_in = w_in_opt
+            self._r_to_r_gen_opt = "CUSTOM"
+            basic_rrgen_fct = r_to_r_gen_opt
+
+        if self.center_r_train:
+            self._r_train_mean = np.mean(r_train, axis=0)
+            r_train = r_train - self._r_train_mean
+        else:
+            self._r_train_mean = 0
+        if self.rescale_r_train:
+            self._r_train_scale = np.std(r_train, axis=0)
+            r_train = r_train/self._r_train_scale
+        else:
+            self._r_train_scale = 1
+        if self.perform_pca:
+            self._pca = decomposition.PCA(n_components=self.pca_components)
+            self._pca.fit(r_train)
+            self._pca_matrix = self._pca.components_
+            if self.center_pca_input:
+                self._pca_input_mean = np.mean(r_train, axis=0)
+            else:
+                self._pca_input_mean = 0
+
+            preprocess_fct = lambda r: self._pca_matrix @ (
+                        ((r - self._r_train_mean) / self._r_train_scale) - self._pca_input_mean)
+        else:
+            preprocess_fct = lambda r: (r - self._r_train_mean) / self._r_train_scale
+
+        self._r_to_r_gen_fct = lambda r, x: basic_rrgen_fct(preprocess_fct(r), x)
+
+        self._r_gen_dim = self._r_to_r_gen_fct(np.zeros(self._r_dim), np.zeros(self._x_dim)).shape[
+            0]
 
 
-class ESN_normal(_ResCompCore, _add_basic_defaults, _add_network_update_fct, _add_basic_r_to_rgen,
-                 _add_w_in, _add_standard_input_coupling, _add_standard_y_to_x):
+class ESN_normal(_ResCompCore,
+                 _add_basic_defaults,
+                 _add_network_update_fct,
+                 _add_basic_r_to_rgen,
+                 _add_w_in,
+                 _add_standard_input_coupling,
+                 _add_standard_y_to_x):
     """
     Pretty standard ESN class
     """
+
     def __init__(self):
         _ResCompCore.__init__(self)
         _add_basic_defaults.__init__(self)
@@ -1328,20 +1468,51 @@ class ESN_normal(_ResCompCore, _add_basic_defaults, _add_network_update_fct, _ad
         _add_standard_input_coupling.__init__(self)
         _add_standard_y_to_x.__init__(self)
 
+        self._input_noise_scale = None
+        self._input_noise_seed = None
+
     def train(self, use_for_train, sync_steps=0, reset_res_state=True, **kwargs):
         sync = use_for_train[:sync_steps]
         train = use_for_train[sync_steps:]
 
         x_train = train[:-1]
         y_train = train[1:]
-        super(ESN_normal, self).train(sync, x_train, y_train, reset_res_state=reset_res_state, **kwargs)
 
-    def build(self, x_dim, r_dim=500, n_rad=0.1, n_avg_deg=6.0, n_type_opt="erdos_renyi", network_creation_attempts=10,
-              r_to_r_gen_opt="linear", act_fct_opt="tanh", node_bias_opt="no_bias", bias_scale=1.0, leak_factor=0.0,
-              w_in_opt="random_sparse", w_in_scale=1.0, default_res_state=None, reg_param=1e-8, network_seed=None,
-              bias_seed=None, w_in_seed=None):
+        # add input noise:
+        if self._input_noise_scale is not None:
+            inp_rng = np.random.default_rng(self._input_noise_seed)
+            x_train += inp_rng.standard_normal(x_train.shape) * self._input_noise_scale
+
+        super(ESN_normal, self).train(sync, x_train, y_train, reset_res_state=reset_res_state,
+                                      **kwargs)
+
+    def build(self,
+              x_dim,
+              r_dim=500,
+              n_rad=0.1,
+              n_avg_deg=6.0,
+              n_type_opt="erdos_renyi",
+              network_creation_attempts=10,
+              r_to_r_gen_opt="linear",
+              act_fct_opt="tanh",
+              node_bias_opt="no_bias",
+              bias_scale=1.0,
+              leak_factor=0.0,
+              w_in_opt="random_sparse",
+              w_in_scale=1.0,
+              default_res_state=None,
+              reg_param=1e-8,
+              network_seed=None,
+              bias_seed=None,
+              w_in_seed=None,
+              input_noise_scale: float | None = None,
+              input_noise_seed: int | None = None
+              ):
 
         # self.logger.debug("Building ESN Archtecture")
+
+        self._input_noise_scale = input_noise_scale
+        self._input_noise_seed = input_noise_seed
 
         self._x_dim = x_dim
         self._y_dim = x_dim
@@ -1357,61 +1528,6 @@ class ESN_normal(_ResCompCore, _add_basic_defaults, _add_network_update_fct, _ad
         self.set_r_to_r_gen_fct(r_to_r_gen_opt=r_to_r_gen_opt)
         self.set_activation_function(act_fct_opt=act_fct_opt)
 
-        if bias_seed is not None:
-            with utilities.temp_seed(bias_seed):
-                self.set_node_bias(node_bias_opt=node_bias_opt, bias_scale=bias_scale)
-        else:
-            self.set_node_bias(node_bias_opt=node_bias_opt, bias_scale=bias_scale)
-
-        self.set_leak_factor(leak_factor=leak_factor)
-
-        if w_in_seed is not None:
-            with utilities.temp_seed(w_in_seed):
-                self.create_w_in(w_in_opt=w_in_opt, w_in_scale=w_in_scale)
-        else:
-            self.create_w_in(w_in_opt=w_in_opt, w_in_scale=w_in_scale)
-
-        self.set_default_res_state(default_res_state=default_res_state)
-        self.set_reg_param(reg_param=reg_param)
-
-
-class ESN_dynsys(_ResCompCore, _add_basic_defaults, _add_dyn_sys_update_fct, _add_basic_r_to_rgen,
-                 _add_w_in, _add_standard_input_coupling, _add_standard_y_to_x):
-    """
-    Use a Dynamical System as res_internal_update_fct
-    """
-    def __init__(self,):
-        _ResCompCore.__init__(self)
-        _add_basic_defaults.__init__(self)
-        _add_dyn_sys_update_fct.__init__(self)
-        _add_basic_r_to_rgen.__init__(self)
-        _add_w_in.__init__(self)
-        _add_standard_input_coupling.__init__(self)
-        _add_standard_y_to_x.__init__(self)
-
-    def train(self, use_for_train, sync_steps=0, reset_res_state=True, **kwargs):
-        sync = use_for_train[:sync_steps]
-        train = use_for_train[sync_steps:]
-
-        x_train = train[:-1]
-        y_train = train[1:]
-        super(ESN_dynsys, self).train(sync, x_train, y_train, reset_res_state=reset_res_state, **kwargs)
-
-    def build(self, x_dim, r_dim=500, dyn_sys_opt="L96", dyn_sys_dt=0.1, scale_factor=1., # , dyn_sys_other_params=(5.,),
-              r_to_r_gen_opt="linear", act_fct_opt="tanh", node_bias_opt="no_bias", bias_scale=1.0, leak_factor=0.0, w_in_opt="random_sparse",
-              w_in_scale=1.0, default_res_state=None, reg_param=1e-8, bias_seed=None, w_in_seed=None, **dyn_sys_other_params):
-
-        # self.logger.debug("Building ESN Archtecture")
-
-        self._x_dim = x_dim
-        self._y_dim = x_dim
-        self._r_dim = r_dim
-
-        self.create_dyn_sys_upd_fct(dyn_sys_opt=dyn_sys_opt, dyn_sys_dt=dyn_sys_dt, scale_factor=scale_factor,
-                                    **dyn_sys_other_params)
-
-        self.set_r_to_r_gen_fct(r_to_r_gen_opt=r_to_r_gen_opt)
-        self.set_activation_function(act_fct_opt=act_fct_opt)
         if bias_seed is not None:
             with utilities.temp_seed(bias_seed):
                 self.set_node_bias(node_bias_opt=node_bias_opt, bias_scale=bias_scale)
@@ -1571,6 +1687,154 @@ class ESN_pca(_ResCompCore, _add_basic_defaults, _add_network_update_fct, _add_p
 
         self.set_pca_components(pca_components, pca_comps_to_skip=pca_comps_to_skip,
                                 norm_with_expl_var=norm_with_expl_var, centering_pre_trans=centering_pre_trans)
+
+        self._r_to_r_gen_opt = r_to_r_gen_opt
+
+        self._x_dim = x_dim
+        self._y_dim = x_dim
+        self._r_dim = r_dim
+
+        if network_seed is not None:
+            with utilities.temp_seed(network_seed):
+                self.create_network(n_rad=n_rad, n_avg_deg=n_avg_deg, n_type_opt=n_type_opt,
+                                    network_creation_attempts=network_creation_attempts)
+        else:
+            self.create_network(n_rad=n_rad, n_avg_deg=n_avg_deg, n_type_opt=n_type_opt,
+                                network_creation_attempts=network_creation_attempts)
+        self.set_activation_function(act_fct_opt=act_fct_opt)
+
+        if bias_seed is not None:
+            with utilities.temp_seed(bias_seed):
+                self.set_node_bias(node_bias_opt=node_bias_opt, bias_scale=bias_scale)
+        else:
+            self.set_node_bias(node_bias_opt=node_bias_opt, bias_scale=bias_scale)
+
+        self.set_leak_factor(leak_factor=leak_factor)
+
+        if w_in_seed is not None:
+            with utilities.temp_seed(w_in_seed):
+                self.create_w_in(w_in_opt=w_in_opt, w_in_scale=w_in_scale)
+        else:
+            self.create_w_in(w_in_opt=w_in_opt, w_in_scale=w_in_scale)
+
+        self.set_default_res_state(default_res_state=default_res_state)
+        self.set_reg_param(reg_param=reg_param)
+
+
+class ESN_r_process(_ResCompCore,
+                    _add_basic_defaults,
+                    _add_network_update_fct,
+                    _add_preprocess_r_to_rgen,
+                    _add_w_in,
+                    _add_standard_input_coupling,
+                    _add_standard_y_to_x):
+    """
+    Able to:
+    - Add noise to x_train
+    - center r_train
+    - rescale r_train
+    - perform a pca
+    """
+
+    def __init__(self):
+        _ResCompCore.__init__(self)
+        _add_basic_defaults.__init__(self)
+        _add_network_update_fct.__init__(self)
+        _add_preprocess_r_to_rgen.__init__(self)
+        _add_w_in.__init__(self)
+        _add_standard_input_coupling.__init__(self)
+        _add_standard_y_to_x.__init__(self)
+
+        self._input_noise_scale = None
+        self._input_noise_seed = None
+
+    def train(self,
+              use_for_train,
+              sync_steps=0,
+              reset_res_state=True,
+              save_y_train=False,
+              **kwargs):
+        sync = use_for_train[:sync_steps]
+        train = use_for_train[sync_steps:]
+
+        x_train = train[:-1]
+        y_train = train[1:]
+
+        # add input noise:
+        if self._input_noise_scale is not None:
+            inp_rng = np.random.default_rng(self._input_noise_seed)
+            x_train += inp_rng.standard_normal(x_train.shape) * self._input_noise_scale
+
+        if save_y_train:
+            self._saved_y_train = y_train
+
+        # r to r_gen with pca
+        if reset_res_state:
+            self.reset_r()
+
+        self.drive(sync)
+
+        kwargs["save_r"] = True
+        kwargs["save_r_gen"] = False
+
+        save_out = False
+        if "save_out" in kwargs.keys():
+            if kwargs["save_out"]:  # can not save out during training before w_out is calculated
+                save_out = True
+                kwargs["save_out"] = False
+
+        self.drive(x_train, **kwargs)
+        r_train = self.get_r()
+
+        self.set_r_to_r_gen_fct(r_train,
+                                r_to_r_gen_opt=self._r_to_r_gen_opt)
+
+        train_steps = r_train.shape[0]
+        r_gen = np.zeros((train_steps, self._r_gen_dim))
+        for i in range(train_steps):
+            r_gen[i, :] = self._r_to_r_gen_fct(r_train[i, :], None)
+
+        self._saved_r_gen = r_gen
+        self._fit_w_out(y_train, self._saved_r_gen)
+
+        if save_out:
+            self._saved_out = (self._w_out @ self._saved_r_gen.T).T
+
+    def build(self,
+              x_dim,
+              r_dim=500,
+              n_rad=0.1,
+              n_avg_deg=6.0,
+              n_type_opt="erdos_renyi",
+              network_creation_attempts=10,
+              center_r_train: bool = False,
+              rescale_r_train: bool = False,
+              perform_pca: bool = False,
+              pca_components: int | None = None,
+              center_pca_input: bool = False,
+              r_to_r_gen_opt="linear",
+              act_fct_opt="tanh",
+              node_bias_opt="no_bias",
+              bias_scale=1.0,
+              leak_factor=0.0,
+              w_in_opt="random_sparse",
+              w_in_scale=1.0,
+              default_res_state=None,
+              reg_param=1e-8,
+              network_seed=None,
+              bias_seed=None,
+              w_in_seed=None,
+              input_noise_scale: float | None = None,
+              input_noise_seed: int | None = None):
+
+        self._input_noise_scale = input_noise_scale
+        self._input_noise_seed = input_noise_seed
+
+        self.set_r_train_preprocessing(center_r_train,
+                                       rescale_r_train,
+                                       perform_pca,
+                                       pca_components,
+                                       center_pca_input)
 
         self._r_to_r_gen_opt = r_to_r_gen_opt
 

@@ -90,7 +90,7 @@ def st_plot_architecture(x_dim: int, r_dim: int, r_gen_dim: int, y_dim: int) -> 
 
     cols[3].latex(r"\rightarrow")
 
-    cols[4].markdown("**Generalized res. states:**")
+    cols[4].markdown("**Generalized res. states (readout):**")
 
     cols[5].latex(r"\rightarrow")
     cols[6].markdown("**Output:**")

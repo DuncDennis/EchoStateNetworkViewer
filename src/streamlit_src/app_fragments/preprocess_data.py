@@ -77,7 +77,9 @@ def st_get_noise_scale(key: str | None = None) -> float | None:
         A float representing the white noise scale.
     """
     with st.expander("Add white noise: "):
-        if st.checkbox("Add white noise", key=f"{key}__st_preprocess_simulation__noise_check"):
+        if st.checkbox("Add white noise",
+                       help="Add gaussian white noise to each dimension of the data",
+                       key=f"{key}__st_preprocess_simulation__noise_check"):
             noise_scale = st.number_input("noise scale", value=0.1, min_value=0.0, step=0.01,
                                           format="%f",
                                           key=f"{key}__st_preprocess_simulation__noise")
@@ -202,7 +204,9 @@ def inverse_transform_shift_scale(time_series: np.ndarray,
     return (time_series - shift_vec) / scale_vec
 
 
-def st_embed_timeseries(x_dim: int, key: str | None = None) -> tuple[int, int, list[int]] | None:
+def st_embed_timeseries(x_dim: int,
+                        key: str | None = None
+                        ) -> tuple[int, int, list[int]] | None:
     """Streamlit element to specify the embedding settings.
 
     To be used with get_embedded_time_series.
@@ -217,10 +221,33 @@ def st_embed_timeseries(x_dim: int, key: str | None = None) -> tuple[int, int, l
     """
 
     with st.expander("Embedding:"):
-
-        embedding_bool = st.checkbox("Do embedding", key=f"{key}__st_embed_timeseries__embbool")
+        embedding_bool = st.checkbox("Do embedding",
+                                     help=
+                                     r"""
+                                     Use this to: 
+                                     - Select certain dimensions of the time series (by default
+                                        use all). 
+                                    - By choosing some "*Embed. dim."* > 0 all the selected 
+                                        dimensions are embedded with the embedding dimension 
+                                        specified. 
+                                    - The time delay for the embedding is defined in "*Delay*"
+                                    
+                                    Notes: 
+                                    - If all dimensions are selected and "*Embed. dim."* = 0, then 
+                                        nothing happens. 
+                                    - If not all dimensions are selected and "*Embed. dim."* = 0, 
+                                        then one just filters out some dimensions and does no
+                                        embedding. 
+                                    - The output timeseries has the dimensions: 
+                                        [Nr of selected dimensions] * ["Embed. dim."]
+                                     """,
+                                     key=f"{key}__st_embed_timeseries__embbool")
 
         if embedding_bool:
+            dimension_selection = utils.st_dimension_selection_multiple(
+                x_dim,
+                default_select_all_bool=True,
+                key=f"{key}__st_embed_timeseries")
             cols = st.columns(2)
             with cols[0]:
                 embedding_dim = int(st.number_input("Embed. dim.", value=0, min_value=0,
@@ -228,10 +255,7 @@ def st_embed_timeseries(x_dim: int, key: str | None = None) -> tuple[int, int, l
             with cols[1]:
                 delay = int(st.number_input("Delay", value=1, min_value=1,
                                             key=f"{key}__st_embed_timeseries__delay"))
-            dimension_selection = utils.st_dimension_selection_multiple(
-                x_dim,
-                default_select_all_bool=True,
-                key=f"{key}__st_embed_timeseries")
+
             return embedding_dim, delay, dimension_selection
         else:
             return None  # Default values for no embedding.
@@ -275,7 +299,13 @@ def st_pca_transform_time_series(x_dim: int,
         A bool whether to perform the pca transform or not.
     """
     with st.expander("PCA transform:"):
-        if st.checkbox("Do pca transform", key=f"{key}__st_pca_transform_time_series"):
+        if st.checkbox("Do pca transform",
+                       help=
+                       r"""
+                       Pca transform the raw data and select the number of principal components 
+                       you want to keep. By default keep as many components as initial dimensions.
+                       """,
+                       key=f"{key}__st_pca_transform_time_series"):
             components = st.number_input("Components",
                                          value=x_dim,
                                          min_value=1,
