@@ -1,8 +1,25 @@
 # Reservoir Computing for Time Series Prediction - Streamlit app
 A streamlit app to explore Reservoir Computing for time series predictions. 
 
-# App: 
+# How to run app: 
+
+### Option 1: Run app on streamlit cloud:
+
 Link to app: https://duncdennis-echostatenetworkviewer-esn-app-main-upload-an-dsrup8.streamlitapp.com/
+
+Note: The website might run into problems if many people are visiting the app at the same time,
+since the streamlit server resources are shared among all users. 
+
+### Option 2: Run app locally in conda environment:
+
+0. (Install Anaconda if not already installed.)
+1. Clone this repository and enter the main directory.
+2. Create the environment with: `conda create --name rc_streamlit_app --file requirements.txt python=3.9` 
+3. Activate newly created environment with: `conda activate rc_streamlit_app`.
+4. Run app with `streamlit run esn_app.py`
+5. App will open in browser.
+
+# Screenshot of app:
 
 ![image](https://user-images.githubusercontent.com/90915296/194052232-d7eda94e-0185-4abe-a5b8-b3fc80088911.png)
 
