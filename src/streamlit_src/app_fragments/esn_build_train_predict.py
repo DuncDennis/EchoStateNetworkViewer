@@ -16,6 +16,7 @@ def esn_hash(obj):
     items = sorted(obj.__dict__.items(), key=lambda it: it[0])
     return hash((type(obj),) + tuple(items))
 
+MAX_CACHE_ENTRIES_ESN  = 2
 
 ESN_DICT = {
     "ESN_normal": esn.ESN_normal,
@@ -195,7 +196,7 @@ def split_time_series_for_train_pred(time_series: np.ndarray,
 
 
 @st.cache(hash_funcs=ESN_HASH_FUNC, allow_output_mutation=False,
-          max_entries=utils.MAX_CACHE_ENTRIES)
+          max_entries=MAX_CACHE_ENTRIES_ESN)
 def build(esn_type: str, seed: int, x_dim: int, build_args: dict[str, Any]) -> ESN_TYPING:
     """Build the esn class.
 
@@ -591,7 +592,7 @@ def st_esn_r_process_args(r_dim: int,
 
 @st.cache(hash_funcs=ESN_HASH_FUNC,
           allow_output_mutation=False,
-          max_entries=utils.MAX_CACHE_ENTRIES)
+          max_entries=MAX_CACHE_ENTRIES_ESN)
 def train(esn_obj: ESN_TYPING,
           x_train: np.ndarray,
           t_train_sync: int,
@@ -641,7 +642,7 @@ def train(esn_obj: ESN_TYPING,
 
 @st.cache(hash_funcs=ESN_HASH_FUNC,
           allow_output_mutation=False,
-          max_entries=utils.MAX_CACHE_ENTRIES)
+          max_entries=MAX_CACHE_ENTRIES_ESN)
 def predict(esn_obj: ESN_TYPING,
             x_pred: np.ndarray,
             t_pred_sync: int,
