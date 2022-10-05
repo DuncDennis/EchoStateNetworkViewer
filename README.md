@@ -1,10 +1,11 @@
 # Reservoir Computing for Time Series Prediction - Streamlit app
-A streamlit app to explore Echo State Networks.
+A streamlit app to explore Reservoir Computing for time series predictions. 
 
 # App: 
 Link to app: https://duncdennis-echostatenetworkviewer-esn-app-main-upload-an-dsrup8.streamlitapp.com/
 
-![img](https://user-images.githubusercontent.com/90915296/185076401-e3cd836b-b583-4eec-8322-2c71061fe7f8.png)
+![image](https://user-images.githubusercontent.com/90915296/194052232-d7eda94e-0185-4abe-a5b8-b3fc80088911.png)
+
 
 # Features: 
 
