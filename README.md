@@ -1,43 +1,56 @@
-# EchoStateNetworkViewer
+# Reservoir Computing for Time Series Prediction - Streamlit app
 A streamlit app to explore Echo State Networks.
 
 # App: 
-Link to app: https://duncdennis-echostatenetworkviewer-esn-app-0bm3qk.streamlitapp.com/
+Link to app: https://duncdennis-echostatenetworkviewer-esn-app-main-upload-an-dsrup8.streamlitapp.com/
 
 ![img](https://user-images.githubusercontent.com/90915296/185076401-e3cd836b-b583-4eec-8322-2c71061fe7f8.png)
 
 # Features: 
-- Simulate a timeseries: 
-  - Choose from 20 dynamical systems.
-  - Adjust the system parameters.
-  - View the system equation. 
-  - Optional preprocessing: Center + shift and add noise.
-  - Define how many time-steps are used for training and prediction.  
-  - Calculate the largest lyapunov exponent from the system equations. 
 
-- Build the Echo-State-Network:
-  - Adjust all ESN parameters like reservoir dimension, input strength, or activation function. 
-  - View some properties of the network and the input matrix. 
- 
-- Train the ESN:
-  - View how good the fit was. If there is a big difference between y_train and y_train_fitted, the reservoir prediction will not work well. 
+**Create raw data:**
+- Either upload your own, or simulate data from a selection of dynamical systems.
+- If you choose to simulate data from a dynamical system:
+  - Choose from 18 dynamical systems as for example: *Lorenz63*, *Roessler*, 
+    *KuramotoSivashinsky*.
+  - Adjust the parameters of the dynamical system
+  - View the system equations. 
+  - View and measure the raw data. 
 
-- Predict with ESN:
-  - See how good the prediction of the ESN is. 
-  - Plot the whole attractor or individual dimensions. 
-  - Measure quantities for the true data and the prediction like: value histogram, power spectrum, lyapunov exponent from data. 
-  - Calculate some measures based on the difference between the prediction and the real time series like: error or valid time. 
-  
-- Look under hood of ESN: 
-  - Look at the value histogram of internal reservoir states, to see if the input strength is well set. 
-  - Plot the timeseries of internal reservoir states for individual reservoir nodes. 
-  - Vizualize the W_out matrix. 
-  - See how well the standard deviation of the reservoir states during training and prediction fit together. 
-  - Plot a 3d plot of three (generalized) reservoir nodes. 
-  - Calculate the largest lyapunov exponent of the trained reservoir. 
+**Preprocess the raw data:**
+  - Perform time delay embedding.
+  - Shift and scale the raw data.
+  - Add noise.
+  - View and measure the preprocessed data.
+
+**Split the preprocessed data into train and predict sections:**
+- Choose which parts of the preprocessed data is used for training and for testing 
+   (i.e. prediction).
+- View the data split.
+
+**Build the reservoir computing setup:**
+- Adjust all the Reservoir Computing hyperparameters like *reservoir dimension*, 
+  *spectral radius* and more.
+- View some RC parameters, like the *Network* or *Input Matrix*
+
+**Train the reservoir:**
+- Perform the training.
+- View the quality of the training fit. 
+
+**Predict with the reservoir:**
+- Predict the prediction-section of the preprocessed data using the trained reservoir. 
+- View and measure the predicted vs. the real data. 
+
+**Turn on advanced features:**
+- Turn on advanced features by checking a checkbox. 
+- Advanced features include:
+  - More advanced reservoir computing options that allow for an additional processing 
+  layer between the reservoir states and the output fit. 
+  - Additional option to "look-under-hood" of the reservoir. View internal reservoir 
+  states.
 
 # Note: 
-Everything is very beta at the moment.
+Everything is still beta at the moment.
 Things that are not yet implemented: 
 - Proper typing for all python files. 
 - Documentation and tutorial on how to use. 
