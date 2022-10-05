@@ -8,7 +8,7 @@ import pandas as pd
 import streamlit as st
 
 
-MAX_CACHE_ENTRIES = 10
+MAX_CACHE_ENTRIES = 5
 
 
 def st_line() -> None:
