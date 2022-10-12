@@ -16,6 +16,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 
 import src.esn_src.measures as resmeas
+import src.esn_src.utilities
 
 from src.streamlit_src.generalized_plotting import plotly_plots as plpl
 from src.streamlit_src.app_fragments import streamlit_utilities as utils
@@ -259,6 +260,36 @@ def st_esn_network_as_heatmap(network: np.ndarray) -> None:
     fig.update_yaxes(title="reservoir dimension")
     st.plotly_chart(fig)
 
+def st_plot_network(network: np.ndarray) -> None:
+    import matplotlib.pyplot as plt
+
+    # net_dim = network.shape[0]
+    # network_mask = np.ones((net_dim, net_dim))
+    # network_mask[network == 0] = 0
+    # if np.all(network_mask.T == network_mask): # if directed
+    #     directed = False
+    #     nw_nx = nx.from_numpy_matrix(network_mask, create_using=nx.Graph)
+    # else:
+    #     directed = True
+    #     nw_nx = nx.from_numpy_matrix(network_mask, create_using=nx.DiGraph)
+
+
+    # nw_nx = nx.from_numpy_matrix(network, create_using=nx.DiGraph)
+    nw_nx = nx.from_numpy_matrix(network, create_using=nx.Graph)
+
+    degrees = np.array([x[1] for x in nw_nx.degree()])
+    degrees_color = list(3.0 * degrees)
+    degrees_size = list(10.0 * degrees)
+    fig = plt.figure()
+    ax = plt.gca()
+    with src.esn_src.utilities.temp_seed(1):
+        nx.draw(nw_nx,
+                ax=ax,
+                # node_size=10,
+                # node_color=degrees_color,
+                node_size=degrees_size,
+                alpha=0.5)
+    st.pyplot(fig)
 
 def st_esn_network_measures(network: np.ndarray) -> None:
     """Streamlit element to measure some network quantities of the provided network.
@@ -325,6 +356,10 @@ def st_all_network_architecture_plots(network: np.ndarray,
                    key=f"{key}__st_all_network_architecture_plots__hm"):
         st_esn_network_as_heatmap(network)
     utils.st_line()
+    if st.checkbox("Plot network",
+                   key=f"{key}__st_all_network_architecture_plots__plot"):
+        st_plot_network(network)
+    utils.st_line()
     if st.checkbox("Network degree",
                    key=f"{key}__st_all_network_architecture_plots__deg"):
         st_esn_network_measures(network)
@@ -332,6 +367,7 @@ def st_all_network_architecture_plots(network: np.ndarray,
     if st.checkbox("Network eigenvalues",
                    key=f"{key}__st_all_network_architecture_plots__eig"):
         st_esn_network_eigenvalues(network)
+
 
 
 # def st_r_gen_std_barplot(r_gen_train: np.ndarray, r_gen_pred: np.ndarray, key: str | None = None
