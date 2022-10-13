@@ -19,7 +19,7 @@ def st_largest_lyapunov_exponent(system_name: str,
                                  system_parameters: dict[str, Any],
                                  key: str | None = None,
                                  save_session_state: bool = False,
-                                 session_state_str: str | None = None) -> None:
+                                 session_state_str: str | None = None) -> float:
     """Streamlit element to calculate the largest lyapunov exponent.
 
     Set up the number inputs for steps, part_time_steps, steps_skip and deviation scale.
@@ -31,9 +31,21 @@ def st_largest_lyapunov_exponent(system_name: str,
         key: Provide a unique key if this streamlit element is used multiple times.
         save_session_state: Whether to save the session state or not.
         session_state_str: A additional str to append to the session state name.
+
+    Returns:
+        The largest lyapunov exponent round to 5 digits.
     """
 
     st.markdown("**Calculate the largest Lyapunov exponent using the system equations:**")
+
+    with st.expander("More info: "):
+        st.markdown(
+            r"""
+            The algorithm was developed by Benettin et al. 1980a. 
+            It is well explained in Sprott 2003 *Chaos and time-series analysis*. 
+            """
+        )
+
     left, right = st.columns(2)
     with left:
         steps = int(st.number_input("steps", value=int(1e3),
@@ -53,19 +65,20 @@ def st_largest_lyapunov_exponent(system_name: str,
                                              part_time_steps=part_time_steps,
                                              deviation_scale=deviation_scale,
                                              steps_skip=steps_skip)
-    largest_lle = np.round(lle_conv[-1], 5)
+    lle = np.round(lle_conv[-1], 5)
 
     if save_session_state:
         name = "LLE"
         if session_state_str is not None:
             name = name + f"_{session_state_str}"
-        utils.st_add_to_state_category(name=name, category="MEASURES", value=largest_lle)
+        utils.st_add_to_state_category(name=name, category="MEASURES", value=lle)
 
     figs = plpl.multiple_1d_time_series({"LLE convergence": lle_conv}, x_label="N",
                                         y_label="running avg of LLE", title=f"Largest Lyapunov "
                                                                             f"Exponent: "
-                                                                            f"{largest_lle}")
+                                                                            f"{lle}")
     plpl.multiple_figs(figs)
+    return lle
 
 
 @st.experimental_memo(max_entries=utils.MAX_CACHE_ENTRIES)
