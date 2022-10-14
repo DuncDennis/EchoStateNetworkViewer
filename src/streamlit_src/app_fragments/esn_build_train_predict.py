@@ -613,18 +613,13 @@ def train(esn_obj: ESN_TYPING,
         for r_act_fct_inp, r_internal, r_input, r, r_gen.
     """
     x_train = x_train.copy()
-    esn_obj.train(x_train,
-                  sync_steps=t_train_sync,
-                  save_y_train=True,
-                  save_out=True,
-                  save_res_inp=return_res_states,
-                  save_r_internal=return_res_states,
-                  save_r=return_res_states,
-                  save_r_gen=return_res_states
-                  )
-
-    y_train_true = esn_obj.get_y_train()
-    y_train_fit = esn_obj.get_out()
+    y_train_fit, y_train_true = esn_obj.train(x_train,
+                                              sync_steps=t_train_sync,
+                                              save_res_inp=return_res_states,
+                                              save_r_internal=return_res_states,
+                                              save_r=return_res_states,
+                                              save_r_gen=return_res_states
+                                              )
 
     if return_res_states:
         res_state_dict = {}
