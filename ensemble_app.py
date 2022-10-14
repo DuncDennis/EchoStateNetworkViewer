@@ -31,8 +31,12 @@ def build_train_predict_ensemble(n_ens: int,
                                  t_pred_disc: int,
                                  t_pred_sync: int,
                                  t_pred: int,
-                                 ):
-    valid_data = preproc_data[t_pred_disc:, :]
+                                 ) -> pd.DataFrame:
+
+    ensembler = sweep.PredModelEnsemble()
+    ensembler.build_models(_esn_class, n_ens=n_ens, seed=seed, **build_args)
+
+    valid_data = preproc_data[t_train_disc:, :]
     tscv = TimeSeriesSplit(n_splits=nr_splits,
                            max_train_size=t_train_sync + t_train,
                            test_size=t_pred_sync + t_pred,
@@ -82,8 +86,9 @@ if __name__ == '__main__':
                        "predict_bool": False}
 
         # Ensemble:
-        st.header("Ensemble size: ")
+        st.header("Ensemble settings: ")
         n_ens = st.number_input("Ensemble size", value=5, min_value=1)
+        nr_splits = st.number_input("Nr of splits", value=5, min_value=1)
 
         # Random seed:
         utils.st_line()
@@ -128,7 +133,10 @@ if __name__ == '__main__':
                 total_steps = preproc_data.shape[0]
                 split_out = \
                     esn.st_select_split_up_relative(
-                        total_steps=total_steps)
+                        total_steps=int(0.5*total_steps),
+                        default_t_train_rel=5000,
+                        default_t_pred_rel=400
+                    )
                 if split_out is not None:
                     status_dict[status_name] = True
                     section_names = ["train disc", "train sync", "train",
@@ -161,9 +169,9 @@ if __name__ == '__main__':
                 x_dim = preproc_data.shape[1]
                 build_args = {"x_dim": x_dim} | build_args
                 esn_class = esn.ESN_DICT[esn_type]
-                ensembler = sweep.PredModelEnsemble()
-
-                ensembler.build_models(esn_class, n_ens=n_ens, seed=seed, **build_args)
+                # ensembler = sweep.PredModelEnsemble()
+                #
+                # ensembler.build_models(esn_class, n_ens=n_ens, seed=seed, **build_args)
 
                 status_dict[status_name] = True
             else:
@@ -182,8 +190,8 @@ if __name__ == '__main__':
                                help="Drive the reservoir with training data and fit the "
                                     "(generalized) reservoir states to the next data step."
                                ):
-                    ensembler.train_models(train_data=x_train,
-                                           sync_steps=t_train_sync)
+                    # ensembler.train_models(train_data=x_train,
+                    #                        sync_steps=t_train_sync)
 
                     status_dict[status_name] = True
             else:
@@ -202,8 +210,8 @@ if __name__ == '__main__':
                                key="Predict Checkbox",
                                help="Synchronize the trained reservoir with real data and then "
                                     "predict the following steps. "):
-                    ensembler.predict_models(predict_data=x_pred,
-                                             sync_steps=t_pred_sync)
+                    # ensembler.predict_models(predict_data=x_pred,
+                    #                          sync_steps=t_pred_sync)
 
                     status_dict[status_name] = True
             else:
@@ -217,52 +225,74 @@ if __name__ == '__main__':
         with status_container:
             esnutils.st_write_status(status_dict)
 
-    st.write(preproc_data.shape)
-    valid_data = preproc_data[t_pred_disc:, :]
-    nr_splits = 5
-    tscv = TimeSeriesSplit(n_splits=nr_splits,
-                           max_train_size=5000,
-                           test_size=500,
-                           gap=t_pred_disc)
-    train_list = []
-    pred_list = []
-    for train_index, test_index in tscv.split(valid_data):
-        train, pred = valid_data[train_index], valid_data[test_index]
-        train_list.append(train)
-        pred_list.append(pred)
-        st.write(train.shape, pred.shape)
-        st.write("train range", train_index[0], train_index[-1])
-        st.write("test range", test_index[0], test_index[-1])
-        utils.st_line()
 
+    if st.checkbox("Do it"):
+        metric_df = build_train_predict_ensemble(n_ens=n_ens,
+                                                 build_args=build_args,
+                                                 _esn_class=esn_class,
+                                                 seed=seed,
+                                                 preproc_data=preproc_data,
+                                                 nr_splits=nr_splits,
+                                                 t_train_disc=t_train_disc,
+                                                 t_train_sync=t_train_sync,
+                                                 t_train=t_train,
+                                                 t_pred_disc=t_pred_disc,
+                                                 t_pred_sync=t_pred_sync,
+                                                 t_pred=t_pred
+                                                 )
+        st.write(metric_df)
 
-    t_train_sync = 50
-    t_pred_sync = 50
-    if st.checkbox("train and predict for ensemble and validation"):
-        df_list = []
-        for i in range(nr_splits):
-            print(f"Fold {i}")
-            train_data = train_list[i]
-            pred_data = pred_list[i]
-            ensembler.train_models(train_data=train_data,
-                                   sync_steps=t_train_sync)
-            ensembler.predict_models(predict_data=pred_data,
-                                     sync_steps=t_pred_sync)
-            metric_df = ensembler.return_pandas()
-            metric_df.insert(loc=0, column="Data Fold", value=i)
-            metric_df.insert(loc=0, column="ESN", value=metric_df.index)
-            # metric_df["ESN"] = metric_df.index
-            # metric_df["Data Fold"] = i
-            df_list.append(metric_df)
-
-        metric_df_fold = pd.concat(df_list, axis=0, ignore_index=True)
-        st.table(metric_df_fold)
+        for metric in metric_df.columns:
+            if metric.startswith("TRAIN") or metric.startswith("PREDICT"):
+                fig = px.histogram(metric_df, x=metric, color="Data Fold", barmode="group",
+                                   opacity=1)
+                st.plotly_chart(fig)
+                fig = px.histogram(metric_df, x=metric, color="ESN", barmode="group",
+                                   opacity=1)
+                st.plotly_chart(fig)
+    # st.write(preproc_data.shape)
+    # valid_data = preproc_data[t_pred_disc:, :]
+    # nr_splits = 5
+    # tscv = TimeSeriesSplit(n_splits=nr_splits,
+    #                        max_train_size=5000,
+    #                        test_size=500,
+    #                        gap=t_pred_disc)
+    # train_list = []
+    # pred_list = []
+    # for train_index, test_index in tscv.split(valid_data):
+    #     train, pred = valid_data[train_index], valid_data[test_index]
+    #     train_list.append(train)
+    #     pred_list.append(pred)
+    #     st.write(train.shape, pred.shape)
+    #     st.write("train range", train_index[0], train_index[-1])
+    #     st.write("test range", test_index[0], test_index[-1])
+    #     utils.st_line()
+    #
+    #
+    # t_train_sync = 50
+    # t_pred_sync = 50
+    # if st.checkbox("train and predict for ensemble and validation"):
+    #     df_list = []
+    #     for i in range(nr_splits):
+    #         print(f"Fold {i}")
+    #         train_data = train_list[i]
+    #         pred_data = pred_list[i]
+    #         ensembler.train_models(train_data=train_data,
+    #                                sync_steps=t_train_sync)
+    #         ensembler.predict_models(predict_data=pred_data,
+    #                                  sync_steps=t_pred_sync)
+    #         metric_df = ensembler.return_pandas()
+    #         metric_df.insert(loc=0, column="Data Fold", value=i)
+    #         metric_df.insert(loc=0, column="ESN", value=metric_df.index)
+    #         # metric_df["ESN"] = metric_df.index
+    #         # metric_df["Data Fold"] = i
+    #         df_list.append(metric_df)
+    #
+    #     metric_df_fold = pd.concat(df_list, axis=0, ignore_index=True)
+    #     st.table(metric_df_fold)
 
     # metric_df = PredEnsemble.return_pandas()
     # st.table(metric_df)
 
-    for metric in metric_df_fold.columns:
-        if metric.startswith("TRAIN") or metric.startswith("PREDICT"):
-            fig = px.histogram(metric_df_fold, x=metric)
-            st.plotly_chart(fig)
+
 
