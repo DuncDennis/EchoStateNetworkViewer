@@ -161,13 +161,6 @@ class PredModelEnsemble:
         return pd.concat([train_df, predict_df], axis=1)
 
 
-class PredESNEnsemble(PredModelEnsemble):
-
-    def __init__(self):
-        PredModelEnsemble.__init__(self)
-
-
-
 class StatisticalModelTester():
     """
     A Class to statistically test a prediction model.
