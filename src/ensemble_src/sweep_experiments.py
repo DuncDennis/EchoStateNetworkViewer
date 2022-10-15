@@ -1,7 +1,8 @@
 """File to create parameter-sweep and ensemble based experiments for RC predictions. """
 from __future__ import annotations
 
-from typing import Callable
+import copy
+from typing import Callable, Any
 
 import numpy as np
 import pandas as pd
@@ -27,7 +28,188 @@ DEFAULT_PREDICT_METRICS = {
 }
 
 
-class PredModelEnsemble:
+class PredModelValidator:
+    """
+    TODO: write DOCstring
+    """
+    def __init__(self, built_model: Any) -> None:
+        self.built_model = built_model
+
+        self.train_metrics: None | dict[str, Callable] = None
+        self.validate_metrics: None | dict[str, Callable] = None
+        self.test_metrics: None | dict[str, Callable] = None
+
+        self.train_metrics_results: None | dict[str, list] = None
+        self.validate_metrics_results: None | dict[str, list[list]] = None
+        self.test_metrics_results: None | dict[str, list[list]] = None
+        
+        self.n_train_secs: int | None = None
+        self.n_val_secs_per_train: int | None = None
+        self.n_test_secs: int | None = None
+
+
+
+
+    def train_validate_test(
+        self,
+        train_data_list: list[np.ndarray],
+        validate_data_list_of_lists: list[list[np.ndarray]],
+        train_sync_steps: int = 0,
+        pred_sync_steps: int = 0,
+        opt_train_args: None | dict[str, Any] = None,
+        opt_pred_args: None | dict[str, Any] = None,
+        train_metrics: None | dict[str, Callable] = None,
+        validate_metrics: None | dict[str, Callable] = None,
+        test_data_list: np.ndarray | list[np.ndarray] | None = None,
+        test_metrics: None | dict[str, Callable] = None,
+        ):
+        """Train validate and test a built model.
+        TODO: TBD
+        Args:
+            train_data_list: The train_data_list
+            validate_data_list_of_lists:
+            train_sync_steps:
+            pred_sync_steps:
+            opt_train_args:
+            opt_pred_args:
+            train_metrics:
+            validate_metrics:
+            test_data_list:
+            test_metrics:
+
+        Returns:
+
+        """
+
+        # Check if nr of train and validate sections match:
+        if len(train_data_list) != len(validate_data_list_of_lists):
+            raise ValueError("train_data_list and validate_data_list_of_lists must "
+                             "have the same length. ")
+
+        self.n_train_secs = len(train_data_list)
+        self.n_test_secs = len(test_data_list)
+        #
+        # # Check if each validate section has the same number of subsections.
+        # nr_of_subsecs_per_train = []
+        # for val_sub_list in validate_data_list_of_lists:
+        #     nr_of_subsecs_per_train.append(len(val_sub_list))
+        # self.n_val_secs_per_train = nr_of_subsecs_per_train[0]
+        # if self.n_val_secs_per_train
+
+        if train_metrics is None:
+            self.train_metrics = DEFAULT_TRAIN_METRICS
+        if validate_metrics is None:
+            self.validate_metrics = DEFAULT_PREDICT_METRICS
+        if test_metrics is None:
+            self.test_metrics = DEFAULT_PREDICT_METRICS
+
+        if opt_train_args is None:
+            opt_train_args = {}
+        if opt_pred_args is None:
+            opt_pred_args = {}
+
+        self.train_metrics_results = {}
+        self.validate_metrics_results = {}
+        self.test_metrics_results = {}
+        for i_train_section, train_data in enumerate(train_data_list):
+            # TRAIN ON TRAIN SECTION.
+            train_fit, train_true = self.built_model.train(train_data,
+                                                     sync_steps=train_sync_steps,
+                                                     **opt_train_args)
+            for metric_name, metric in self.train_metrics.items():
+                metric_result = metric(train_true, train_fit)
+                if metric_name in self.train_metrics_results:
+                    self.train_metrics_results[metric_name].append(metric_result)
+                else:
+                    self.train_metrics_results[metric_name] = [metric_result]
+
+            # GET ALL VALIDATION SECTIONS FOR THAT SPECIFIC TRAIN SECTION
+            validate_list_for_train_section = validate_data_list_of_lists[i_train_section]
+
+            # PREDICT TRAINED MODEL ON ALL VALIDATION SECTIONS FOR THAT SPECIFIC TRAIN SECTION
+            for validate_data in validate_list_for_train_section:
+                pred, pred_true = self.built_model.predict(validate_data,
+                                                     sync_steps=pred_sync_steps,
+                                                     **opt_pred_args)
+
+                for metric_name, metric in self.validate_metrics.items():
+                    metric_result = metric(pred_true, pred)
+                    if metric_name in self.validate_metrics_results:
+                        if len(self.validate_metrics_results[metric_name]) == i_train_section + 1:
+                            self.validate_metrics_results[metric_name][i_train_section].append(metric_result)
+                        else:
+                            self.validate_metrics_results[metric_name].append([metric_result])
+                    else:
+                        self.validate_metrics_results[metric_name] = [[metric_result]]
+
+            # PREDICT THE TRAINED MODEL ON ALL TEST SECTIONS FOR THAT SPECIFIC TRAIN SECTION
+            if test_data_list is not None:
+                for test_data in test_data_list:
+                    pred, pred_true = self.built_model.predict(test_data,
+                                                    sync_steps=pred_sync_steps,
+                                                    **opt_pred_args)
+
+                    for metric_name, metric in self.test_metrics.items():
+                        metric_result = metric(pred_true, pred)
+                        if metric_name in self.test_metrics_results:
+                            if len(self.test_metrics_results[metric_name]) == i_train_section + 1:
+                                self.test_metrics_results[metric_name][i_train_section].append(metric_result)
+                            else:
+                                self.test_metrics_results[metric_name].append([metric_result])
+                        else:
+                            self.test_metrics_results[metric_name] = [[metric_result]]
+
+
+
+    def metrics_to_pandas(self) -> None: 
+        train_df = pd.DataFrame.from_dict(self.train_metrics_results)
+        train_df.rename(mapper=lambda x: f"TRAIN {x}", inplace=True, axis=1)
+        train_df.insert(0, column="train sect", value=train_df.index)
+
+        validate_df = None
+        for i_train_sec in range(self.n_train_secs):
+            sub_validate_dict = {k: v[i_train_sec] for k, v in
+                                 self.validate_metrics_results.items()}
+
+            sub_validate_df = pd.DataFrame.from_dict(sub_validate_dict)
+            sub_validate_df.rename(mapper=lambda x: f"VALIDATE {x}", inplace=True, axis=1)
+            sub_validate_df.insert(0, column="val sect", value=sub_validate_df.index)
+            sub_validate_df.insert(0, column="train sect", value=i_train_sec)
+
+            if validate_df is None:
+                validate_df = sub_validate_df
+            else:
+                validate_df = pd.concat([validate_df, sub_validate_df])
+        metric_df = pd.merge(train_df, validate_df, on="train sect")
+
+        if self.n_test_secs is not None:
+            test_df = None
+            for i_train_sec in range(self.n_train_secs):
+                sub_test_dict = {k: v[i_train_sec] for k, v in
+                                     self.test_metrics_results.items()}
+
+                sub_test_df = pd.DataFrame.from_dict(sub_test_dict)
+                sub_test_df.rename(mapper=lambda x: f"TEST {x}", inplace=True, axis=1)
+                sub_test_df.insert(0, column="test sect", value=sub_test_df.index)
+                sub_test_df.insert(0, column="train sect", value=i_train_sec)
+
+                if test_df is None:
+                    test_df = sub_test_df
+                else:
+                    test_df = pd.concat([test_df, sub_test_df])
+            metric_df = pd.merge(metric_df, test_df, on="train sect")
+
+        cols = metric_df.columns.tolist()
+        cols_new = cols.copy()
+        for section in ["train sect", "val sect", "test sect"][::-1]:
+            index = cols_new.index(section)
+            cols_new.pop(index)
+            cols_new.insert(0, section)
+
+        metric_df = metric_df[cols_new]
+        return metric_df
+
+class PredModelEnsembler:
     """Class to train, validate and test a prediction model.
 
     - Has a build function, where all the parameters are defined.
@@ -46,24 +228,23 @@ class PredModelEnsemble:
         self.train_metrics: None | dict[str, Callable] = None
         self.predict_metrics: None | dict[str, Callable] = None
 
-        self.train_metrics_results: None | dict[str, np.ndarray] = None
-        self.predict_metrics_results: None | dict[str, np.ndarray] = None
+        self.train_metrics_results: None | dict[str, list] = None
+        self.predict_metrics_results: None | dict[str, list] = None
 
     def build_models(self,
                      model_class,
+                     build_args: None | dict[str, Any] = None,
                      n_ens: int = 1,
-                     seed: int = 0,
-                     **build_args) -> None:
+                     seed: int = 0) -> None:
         """Function to build an ensemble of models each with a different seed.
 
         Saves all built models to the list: self.model_objects.
 
         Args:
             model_object: The model object, as for example ESN_normal()
+            build_args: The arguments parsed to model_object.build(**build_args)
             n_ens: The ensemble size.
             seed: The random seed.
-            **build_args: All the arguments parsed to model_object.build(**build_args)
-
         """
         self.n_ens = n_ens
         self.master_seed = seed
@@ -74,6 +255,7 @@ class PredModelEnsemble:
         for seed in self.seeds:
             with utilities.temp_seed(seed):
                 model_object = model_class()
+                build_args = utilities._remove_invalid_args(model_object.build, build_args)
                 model_object.build(**build_args)
                 self.model_objects.append(model_object)
 
@@ -159,6 +341,44 @@ class PredModelEnsemble:
         predict_df = pd.DataFrame.from_dict(self.predict_metrics_results)
         predict_df.rename(mapper=lambda x: f"PREDICT {x}", inplace=True, axis=1)
         return pd.concat([train_df, predict_df], axis=1)
+
+
+# class PredModelValidator(PredModelEnsembler):
+#     """Class to Validate the PredModelEnsemble on different train and predict sets.
+#
+#     - Create an error function on the validation set.
+#     """
+#
+#     def __init__(self):
+#         PredModelEnsembler.__init__(self)
+#
+#         # outer list corresponds to train sections, inner list to the ensemble.
+#         self.trained_models_secs: list[list] | None = None
+#
+#         self.train_metrics_results_secs: list[dict[str, list]] | None = None
+#
+#
+#     def train_models(self,
+#                      train_data_list: list[np.ndarray],
+#                      sync_steps: int = 0,
+#                      train_metrics: None | dict[str, Callable] = None,
+#                      **train_args
+#                      ) -> None:
+#         for train_data in train_data_list:
+#             super(PredModelValidator, self).train_models(train_data,
+#                                                          sync_steps=sync_steps,
+#                                                          train_metrics=train_metrics,
+#                                                          **train_args)
+#             # Save trained models:
+#             if self.trained_models_secs is None:
+#                 self.trained_models_secs = [copy.deepcopy(self.model_objects)]
+#             else:
+#                 self.trained_models_secs.append(copy.deepcopy(self.model_objects))
+#
+#             # Save train metrics:
+#
+
+
 
 
 class StatisticalModelTester():

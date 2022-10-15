@@ -1,5 +1,5 @@
 from typing import Any
-
+import copy
 import streamlit as st
 
 import plotly.express as px
@@ -33,7 +33,7 @@ def build_train_predict_ensemble(n_ens: int,
                                  t_pred: int,
                                  ) -> pd.DataFrame:
 
-    ensembler = sweep.PredModelEnsemble()
+    ensembler = sweep.PredModelEnsembler()
     ensembler.build_models(_esn_class, n_ens=n_ens, seed=seed, **build_args)
 
     valid_data = preproc_data[t_train_disc:, :]
@@ -167,7 +167,14 @@ if __name__ == '__main__':
                     with st.expander("Reservoir post-process layer:"):
                         build_args = build_args | esn.st_esn_r_process_args(build_args["r_dim"])
                 x_dim = preproc_data.shape[1]
-                build_args = {"x_dim": x_dim} | build_args
+
+                esn_obj = esn.build(esn_type,
+                                    seed=seed,
+                                    x_dim=x_dim,
+                                    build_args=build_args)
+                esn_obj = copy.deepcopy(esn_obj)
+
+                # build_args = {"x_dim": x_dim} | build_args
                 esn_class = esn.ESN_DICT[esn_type]
                 # ensembler = sweep.PredModelEnsemble()
                 #
@@ -224,6 +231,35 @@ if __name__ == '__main__':
         # Write status:
         with status_container:
             esnutils.st_write_status(status_dict)
+
+    if st.checkbox("Do new thing"):
+
+        # Test data:
+        train_data_list = [preproc_data[:1000],
+                           preproc_data[1000:2000]]
+        validate_data_list_of_lists = [[preproc_data[1000:1500], preproc_data[1500:2000]],
+                                        [preproc_data[2000:2500], preproc_data[2500:3000]]]
+        test_data_list = [preproc_data[3000: 3500],
+                          preproc_data[3500: 4000]]
+
+        train_sync_steps = 100
+        pred_sync_steps = 100
+
+        validator = sweep.PredModelValidator(built_model=esn_obj)
+        # validator.build_model(model_class=esn_class,
+        #                       build_args=build_args)
+        st.write(validator)
+        validator.train_validate_test(train_data_list=train_data_list,
+                                      validate_data_list_of_lists=validate_data_list_of_lists,
+                                      train_sync_steps=train_sync_steps,
+                                      pred_sync_steps=pred_sync_steps,
+                                      test_data_list=test_data_list)
+        df = validator.metrics_to_pandas()
+        st.write(df)
+
+        validator.train_metrics_results
+        validator.validate_metrics_results
+        validator.test_metrics_results
 
 
     if st.checkbox("Do it"):
