@@ -168,13 +168,13 @@ if __name__ == '__main__':
                         build_args = build_args | esn.st_esn_r_process_args(build_args["r_dim"])
                 x_dim = preproc_data.shape[1]
 
-                esn_obj = esn.build(esn_type,
-                                    seed=seed,
-                                    x_dim=x_dim,
-                                    build_args=build_args)
-                esn_obj = copy.deepcopy(esn_obj)
+                # esn_obj = esn.build(esn_type,
+                #                     seed=seed,
+                #                     x_dim=x_dim,
+                #                     build_args=build_args)
+                # esn_obj = copy.deepcopy(esn_obj)
 
-                # build_args = {"x_dim": x_dim} | build_args
+                build_args = {"x_dim": x_dim} | build_args
                 esn_class = esn.ESN_DICT[esn_type]
                 # ensembler = sweep.PredModelEnsemble()
                 #
@@ -232,6 +232,9 @@ if __name__ == '__main__':
         with status_container:
             esnutils.st_write_status(status_dict)
 
+
+
+
     if st.checkbox("Do new thing"):
 
         # Test data:
@@ -242,24 +245,40 @@ if __name__ == '__main__':
         test_data_list = [preproc_data[3000: 3500],
                           preproc_data[3500: 4000]]
 
+        test_data_list = None
+
         train_sync_steps = 100
         pred_sync_steps = 100
 
-        validator = sweep.PredModelValidator(built_model=esn_obj)
-        # validator.build_model(model_class=esn_class,
-        #                       build_args=build_args)
-        st.write(validator)
-        validator.train_validate_test(train_data_list=train_data_list,
+        # validator = sweep.PredModelValidator(built_model=esn_obj)
+        # # validator.build_model(model_class=esn_class,
+        # #                       build_args=build_args)
+        # st.write(validator)
+        # validator.train_validate_test(train_data_list=train_data_list,
+        #                               validate_data_list_of_lists=validate_data_list_of_lists,
+        #                               train_sync_steps=train_sync_steps,
+        #                               pred_sync_steps=pred_sync_steps,
+        #                               test_data_list=test_data_list)
+        # df = validator.metrics_to_pandas()
+        # st.write(df)
+        #
+        # validator.train_metrics_results
+        # validator.validate_metrics_results
+        # validator.test_metrics_results
+
+        ensembler = sweep.PredModelEnsembler()
+        ensembler.build_models(model_class=esn_class,
+                               build_args=build_args,
+                               n_ens=n_ens,
+                               seed=seed)
+
+        metrics_df = ensembler.train_validate_test(train_data_list=train_data_list,
                                       validate_data_list_of_lists=validate_data_list_of_lists,
                                       train_sync_steps=train_sync_steps,
                                       pred_sync_steps=pred_sync_steps,
                                       test_data_list=test_data_list)
-        df = validator.metrics_to_pandas()
-        st.write(df)
 
-        validator.train_metrics_results
-        validator.validate_metrics_results
-        validator.test_metrics_results
+        st.write(metrics_df)
 
 
     if st.checkbox("Do it"):
