@@ -28,10 +28,23 @@ DEFAULT_PREDICT_METRICS = {
 }
 
 class PredModelValidator:
-    """
-    TODO: write DOCstring
+    """Class to validate a time-series prediction model (as ESN).
+
     """
     def __init__(self, built_model: Any) -> None:
+        """Initialize.
+
+        Add the built model as the argument.
+
+        Args:
+            built_model: A "built_model", which must have the methods:
+                - built_model.train(train_data: np.ndarray, sync_steps: int, **opt_train_args)
+                  -> returns: (train_fit, train_true). Where train_fit and train_true both have
+                  the shape (train_steps - sync_steps - 1, data dimension).
+                - built_model.predict(predict_data: np.ndarray, sync_steps: int, **opt_pred_args).
+                  -> returns: (prediction, pred_true). Where prediction and pred_true both have
+                  the shape (pred_steps - sync_steps - 1, data dimension).
+        """
         self.built_model = built_model
 
         self.train_metrics: None | dict[str, Callable] = None
@@ -43,7 +56,6 @@ class PredModelValidator:
         self.test_metrics_results: None | dict[str, list[list]] = None
         
         self.n_train_secs: int | None = None
-        self.n_val_secs_per_train: int | None = None
         self.n_test_secs: int | None = None
 
         self.metrics_df: None | pd.DataFrame = None
@@ -62,21 +74,40 @@ class PredModelValidator:
         test_metrics: None | dict[str, Callable] = None,
         ) -> pd.DataFrame:
         """Train validate and test a built model.
-        TODO: TBD
+
+        The test set is optional.
+
         Args:
-            train_data_list: The train_data_list
-            validate_data_list_of_lists:
-            train_sync_steps:
-            pred_sync_steps:
-            opt_train_args:
-            opt_pred_args:
-            train_metrics:
-            validate_metrics:
-            test_data_list:
-            test_metrics:
+            train_data_list: A list of train sections: [train_data1, train_data2, ...].
+                each train_data entry has the shape (train steps, data dimension).
+            validate_data_list_of_lists: A list of lists of validation data (which has to be
+                predicted. The outer list corresponds to the training sections, i.e.
+                [pred_sub_list_1, pred_sub_list_2, ...], and each pred_sub_list_i is
+                pred_sub_list_i = [pred_data_sub_i_1, pred_data_sub_i_2, ...].
+            train_sync_steps: The steps used to sync before training starts.
+            pred_sync_steps: The steps used to sync before validation and testing before
+                prediction.
+            opt_train_args: Optional arguments parsed to train function as a dictionary.
+            opt_pred_args: Optional arguments parsed to predict function as a dictionary.
+            train_metrics: A dictionary of train metrics as: {"Metric1": metric_func_1, ...}
+                each metric_func takes the arguments (y_true, y_pred) and returns a float.
+            validate_metrics: The same as train_metrics but for the validation.
+                It is different, since for ESN at least, one uses different Metrics for training
+                and prediction.
+            test_data_list: Optional list of testing data. For each training section, all testing
+                data sections are tested and measures with the test_metrics.
+            test_metrics: The same as validate_metrics but for the testing. Also time-series
+            predict metrics.
 
         Returns:
-
+            Pandas DataFrame with the results. Dataframe has the columns:
+            - train sect (an integer for the train section used).
+            - val sect (an integer for the validation section used for that train section).
+            - If testing data is given: test sect (an integer for the test section.)
+                There is an entry for every combination of train sect, val sect and testing sect.
+            - The train metrics starting with "TRAIN <metric xyz>", ..
+            - The validation metrics starting with "VALIDATE <metric xyz>", ..
+            - The test metrics starting with "TEST <metric xyz>", ..
         """
 
         # Check if nr of train and validate sections match:
@@ -84,17 +115,12 @@ class PredModelValidator:
             raise ValueError("train_data_list and validate_data_list_of_lists must "
                              "have the same length. ")
 
+        # Save the number of training and testing sections.
         self.n_train_secs = len(train_data_list)
         if test_data_list is not None:
             self.n_test_secs = len(test_data_list)
 
-        # # Check if each validate section has the same number of subsections.
-        # nr_of_subsecs_per_train = []
-        # for val_sub_list in validate_data_list_of_lists:
-        #     nr_of_subsecs_per_train.append(len(val_sub_list))
-        # self.n_val_secs_per_train = nr_of_subsecs_per_train[0]
-        # if self.n_val_secs_per_train
-
+        # Set the metrics for train, validate and test if they are None:
         if train_metrics is None:
             self.train_metrics = DEFAULT_TRAIN_METRICS
         if validate_metrics is None:
@@ -102,15 +128,20 @@ class PredModelValidator:
         if test_metrics is None:
             self.test_metrics = DEFAULT_PREDICT_METRICS
 
+        # set optional train args if they are None:
         if opt_train_args is None:
             opt_train_args = {}
         if opt_pred_args is None:
             opt_pred_args = {}
 
+        # Initialize the metric results:
         self.train_metrics_results = {}
         self.validate_metrics_results = {}
         self.test_metrics_results = {}
+
+        # Iterate through the train sections:
         for i_train_section, train_data in enumerate(train_data_list):
+
             # TRAIN ON TRAIN SECTION.
             train_fit, train_true = self.built_model.train(train_data,
                                                      sync_steps=train_sync_steps,
@@ -157,13 +188,16 @@ class PredModelValidator:
                                 self.test_metrics_results[metric_name].append([metric_result])
                         else:
                             self.test_metrics_results[metric_name] = [[metric_result]]
+
+        # Calculate pandas DF out of metric dicts:
         self.metric_dfs = self.metrics_to_pandas()
+
+        # Return pandas metrics DF
         return self.metric_dfs
 
 
     def metrics_to_pandas(self) -> pd.DataFrame:
         """Transform the metrics dictionaries to a pandas dataframe.
-        TODO: Add proper docstring.
         """
         train_df = pd.DataFrame.from_dict(self.train_metrics_results)
         train_df.rename(mapper=lambda x: f"TRAIN {x}", inplace=True, axis=1)
