@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any
 import copy
 import streamlit as st
@@ -266,20 +268,99 @@ if __name__ == '__main__':
         # validator.validate_metrics_results
         # validator.test_metrics_results
 
-        ensembler = sweep.PredModelEnsembler()
-        ensembler.build_models(model_class=esn_class,
-                               build_args=build_args,
-                               n_ens=n_ens,
-                               seed=seed)
+        # ensembler = sweep.PredModelEnsembler()
+        # ensembler.build_models(
+        #     model_class=esn_class,
+        #     build_args=build_args,
+        #     n_ens=n_ens,
+        #     seed=seed)
+        #
+        # metrics_df = ensembler.train_validate_test(
+        #     train_data_list=train_data_list,
+        #     validate_data_list_of_lists=validate_data_list_of_lists,
+        #     train_sync_steps=train_sync_steps,
+        #     pred_sync_steps=pred_sync_steps,
+        #     test_data_list=test_data_list)
+        #
+        # st.write(metrics_df)
 
-        metrics_df = ensembler.train_validate_test(train_data_list=train_data_list,
-                                      validate_data_list_of_lists=validate_data_list_of_lists,
-                                      train_sync_steps=train_sync_steps,
-                                      pred_sync_steps=pred_sync_steps,
-                                      test_data_list=test_data_list)
+    parameters = {
+        "r_dim": [50, 150, 250, 350, 450]
+    }
+    # parameters = {
+    #     "type": ["normal"],  # "output_hybrid", "input_hybrid",
+    #     "eps": [1.0],
+    #     "KS_dimensions": 64,
+    #     "KS_L": 35,
+    #     "r_dim": [500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000, 6500,
+    #               7000, 7500, 8000],
+    #     # "r_dim": [300],
+    #     "n_type_opt": ["random_directed"],
+    #     "r_to_r_gen_opt": "linear_and_square_r_alt",
+    #     "act_fct_opt": "tanh",
+    #     "node_bias_opt": "no_bias",
+    #     "bias_scale": 0.0,
+    #     "reg_param": [1e-7, ],
+    #     "w_in_opt": "random_sparse",
+    #     "w_in_scale": [1.0],
+    #     "n_rad": 0.4,
+    #     "n_avg_deg": 3.0,
+    #     "model_to_network_factor": 0.5,
+    # }
 
+    def parameter_transformer(parameters: dict[str, float | int | str]):
+        """Transform the parameters to be usable by PredModelEnsembler.
+
+        Args:
+            parameters: The parameter dict defining the sweep experiment.
+                Each key value pair must be like: key is a string, value is either a string,
+                int or float.
+
+        Returns:
+            All the data needed for PredModelEnsembler.
+        """
+
+        build_args["r_dim"] = parameters["r_dim"]
+
+        out = (
+            train_data_list,
+            validate_data_list_of_lists,
+            test_data_list,
+            train_sync_steps,
+            pred_sync_steps,
+            esn_class,
+            build_args,
+            n_ens,
+            seed
+        )
+        return out
+
+    sweeper = sweep.PredModelSweeper()
+    sweeper.set_parameter_transformer(parameter_transformer)
+    out = sweeper.sweep(parameters)
+
+    mean_vt = []
+    std_vt = []
+
+    import plotly.graph_objects as go
+    fig = go.Figure()
+    for part_out in out:
+        params = part_out[0]
+        metrics_df = part_out[1]
+        st.write(params)
         st.write(metrics_df)
+        fig.add_trace(
+            go.Histogram(x=metrics_df["VALIDATE VT"], opacity=0.5)
+        )
+        # mean_vt.append(np.mean(metrics_df["VALIDATE VT"]))
+        # std_vt.append(np.std(metrics_df["VALIDATE VT"]))
+        #
+        mean_vt.append(np.mean(metrics_df["TRAIN MSE"]))
+        std_vt.append(np.std(metrics_df["TRAIN MSE"]))
+    st.plotly_chart(fig)
 
+    fig = px.line(y=mean_vt, error_y=std_vt)
+    st.plotly_chart(fig)
 
     if st.checkbox("Do it"):
         metric_df = build_train_predict_ensemble(n_ens=n_ens,
@@ -305,6 +386,8 @@ if __name__ == '__main__':
                 fig = px.histogram(metric_df, x=metric, color="ESN", barmode="group",
                                    opacity=1)
                 st.plotly_chart(fig)
+
+
     # st.write(preproc_data.shape)
     # valid_data = preproc_data[t_pred_disc:, :]
     # nr_splits = 5

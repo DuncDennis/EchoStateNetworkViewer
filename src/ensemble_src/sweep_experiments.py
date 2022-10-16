@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import itertools
 from typing import Callable, Any
 
 import numpy as np
@@ -54,7 +55,7 @@ class PredModelValidator:
         self.train_metrics_results: None | dict[str, list] = None
         self.validate_metrics_results: None | dict[str, list[list]] = None
         self.test_metrics_results: None | dict[str, list[list]] = None
-        
+
         self.n_train_secs: int | None = None
         self.n_test_secs: int | None = None
 
@@ -333,10 +334,106 @@ class PredModelEnsembler:
         metrics_df_all = pd.concat(self.metrics_df_list, ignore_index=True)
         return metrics_df_all
 
-# class PredModelSweeper:
+class PredModelSweeper:
+    """Class to sweep parameters of a model and for each parameter setting create a metrics_df.
 
+    -> See PredModelEnsembler to see how to create a metrics_df.
 
+    """
+    def __init__(self,
+                 parameter_transformer: Callable[[dict[str, float | int | str | bool]], tuple]
+                 ) -> None:
+        """Set the parameter transformer function.
 
+        Args:
+            parameter_transformer: The parameter_tranformer is a function that takes a
+            dict of parameters (with str keys and float/int/str/bool values) as its argument
+            and outputs:
+                    out = (
+                            train_data_list,
+                            validate_data_list_of_lists,
+                            test_data_list,
+                            train_sync_steps,
+                            pred_sync_steps,
+                            esn_class,
+                            build_args,
+                            n_ens,
+                            seed
+                        )
+        """
+
+        self.set_parameter_transformer(parameter_transformer)
+        self.metric_results: list[tuple[dict[str, float | int | str], pd.DataFrame]] | None = None
+
+    def set_parameter_transformer(
+            self,
+            parameter_transformer: Callable[[dict[str, float | int | str | bool]], tuple]
+    ) -> None:
+        self.parameter_transformer = parameter_transformer
+
+    def dict_to_dict_of_tuples(self, inp: dict[str, Any]) -> dict[str, tuple]:
+        """Function to turn a dictionary of objects into a dictionary of tuples of the obects.
+
+        Args:
+            inp: A dictionary like: {"a": 1.0, "b": [1, 2, 3], "c": (2, 4)}.
+
+        Returns:
+            The transformed dictionary: {"a": (1.0, ), "b": (1, 2, 3), "c": (2, 4)}.
+        """
+        return {key: ((val,) if not type(val) in (list, tuple) else tuple(val))
+                for key, val in inp.items()}
+
+    def unpack_parameters(self, parameters: dict[str, Any]) -> list[dict[str, Any]]:
+        """Unpack parameters dictionary which may contain lists, into a list of dicts.
+
+        Args:
+            parameters: A dictionary like: {"a": 1.0, "b": [1, 2, 3], "c": (2, 4)}.
+
+        Returns:
+            list_of_params as [{"a": 1.0, "b": 1, "c": 2}, {"a": 1.0, "b": 2, "c": 2}, ...].
+        """
+        list_of_params = []
+        parameters_w_list = self.dict_to_dict_of_tuples(parameters)
+
+        keys = parameters_w_list.keys()
+        values = parameters_w_list.values()
+
+        for x in list(itertools.product(*values)):
+            d = dict(zip(keys, x))
+            list_of_params.append(d)
+
+        return list_of_params
+
+    def sweep(self, parameters: dict[str, Any]
+              ) -> list[tuple[dict[str, float | int | str], pd.DataFrame]]:
+
+        list_of_params = self.unpack_parameters(parameters)
+        self.metric_results = []
+        for i, params in enumerate(list_of_params):
+            print(f"Sweep: {i + 1}/{len(list_of_params)}")
+            print(params)
+            out = self.parameter_transformer(params)
+            train_data_list, validate_data_list_of_lists, test_data_list = out[0], out[1], out[2]
+            train_sync_steps, pred_sync_steps = out[3], out[4]
+            esn_class = out[5]
+            build_args = out[6]
+            n_ens, seed = out[7], out[8]
+
+            ensembler = PredModelEnsembler()
+            ensembler.build_models(
+                model_class=esn_class,
+                build_args=build_args,
+                n_ens=n_ens,
+                seed=seed)
+            metrics_df = ensembler.train_validate_test(
+                train_data_list=train_data_list,
+                validate_data_list_of_lists=validate_data_list_of_lists,
+                train_sync_steps=train_sync_steps,
+                pred_sync_steps=pred_sync_steps,
+                test_data_list=test_data_list)
+            self.metric_results.append((params, metrics_df))
+
+        return self.metric_results
 
 
 class PredModelEnsembler_old:
