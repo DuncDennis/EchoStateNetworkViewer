@@ -12,12 +12,43 @@ import src.esn_src.utilities as utilities
 import src.esn_src.measures as measures
 
 def mse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """The mean squared error between y_true and y_pred.
+
+    Args:
+        y_true: The true time series of shape (time steps, sysdim).
+        y_pred: The predicted time series of shape (time steps, sysdim).
+
+    Returns:
+        A float representing the MSE.
+    """
     return (np.linalg.norm(y_true - y_pred, axis=1)**2).mean()
 
-def valid_time(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+def valid_time(y_true: np.ndarray,
+               y_pred: np.ndarray,
+               dt: float = 1.0,
+               lle: float = 1.0,
+               error_threshold: float = 0.4,
+               error_norm: str = "root_of_avg_of_spacedist_squared") -> float:
+    """Calculate the valid time in lyapunov times for a prediction, given y_pred and y_true.
+
+    If you only want the index: use dt = lle = 1.0.
+    If you want the time: use dt = dt, lle = 1.0.
+    If you want the vt in units of lyapunov times use: dt=dt, lle=lle.
+
+    Args:
+        y_true: The true time series of shape (time steps, sysdim).
+        y_pred: The predicted time series of shape (time steps, sysdim).
+        dt: Time step dt.
+        lle: The lyapunov exponent.
+        error_threshold: Threshold for max error.
+        error_norm: The norm to use for error.
+    Returns:
+        The valid time in units of lyapunov time (if dt and lle are properly set).
+    """
     error_series = measures.error_over_time(y_pred, y_true,
-                                            normalization="root_of_avg_of_spacedist_squared")
-    return measures.valid_time_index(error_series, error_threshold=0.4)
+                                            normalization=error_norm)
+    return measures.valid_time_index(error_series,
+                                     error_threshold=error_threshold) * dt * lle
 
 DEFAULT_TRAIN_METRICS = {
     "MSE": mse
@@ -30,6 +61,9 @@ DEFAULT_PREDICT_METRICS = {
 
 class PredModelValidator:
     """Class to validate a time-series prediction model (as ESN).
+
+    Validate means: a built model trains and predicts on multiple data sections and the metrics
+    are saved.
 
     """
     def __init__(self, built_model: Any) -> None:
@@ -73,6 +107,9 @@ class PredModelValidator:
         validate_metrics: None | dict[str, Callable] = None,
         test_data_list: np.ndarray | list[np.ndarray] | None = None,
         test_metrics: None | dict[str, Callable] = None,
+        opt_train_metrics_args: None | dict[str, dict[str, Any]] | None = None,
+        opt_validate_metrics_args: None | dict[str, dict[str, Any]] | None = None,
+        opt_test_metrics_args: None | dict[str, dict[str, Any]] | None = None,
         ) -> pd.DataFrame:
         """Train validate and test a built model.
 
@@ -129,11 +166,19 @@ class PredModelValidator:
         if test_metrics is None:
             self.test_metrics = DEFAULT_PREDICT_METRICS
 
-        # set optional train args if they are None:
+        # set optional train and pred args if they are None:
         if opt_train_args is None:
             opt_train_args = {}
         if opt_pred_args is None:
             opt_pred_args = {}
+
+        # set optional train, validate and test metric args if they are None:
+        if opt_train_metrics_args is None:
+            opt_train_metrics_args = {}
+        if opt_validate_metrics_args is None:
+            opt_validate_metrics_args = {}
+        if opt_test_metrics_args is None:
+            opt_test_metrics_args = {}
 
         # Initialize the metric results:
         self.train_metrics_results = {}
@@ -148,7 +193,11 @@ class PredModelValidator:
                                                      sync_steps=train_sync_steps,
                                                      **opt_train_args)
             for metric_name, metric in self.train_metrics.items():
-                metric_result = metric(train_true, train_fit)
+                if metric_name in opt_train_metrics_args:
+                    opt_args = opt_train_metrics_args[metric_name]
+                else:
+                    opt_args = {}
+                metric_result = metric(train_true, train_fit, **opt_args)
                 if metric_name in self.train_metrics_results:
                     self.train_metrics_results[metric_name].append(metric_result)
                 else:
@@ -164,7 +213,11 @@ class PredModelValidator:
                                                      **opt_pred_args)
 
                 for metric_name, metric in self.validate_metrics.items():
-                    metric_result = metric(pred_true, pred)
+                    if metric_name in opt_validate_metrics_args:
+                        opt_args = opt_validate_metrics_args[metric_name]
+                    else:
+                        opt_args = {}
+                    metric_result = metric(pred_true, pred, **opt_args)
                     if metric_name in self.validate_metrics_results:
                         if len(self.validate_metrics_results[metric_name]) == i_train_section + 1:
                             self.validate_metrics_results[metric_name][i_train_section].append(metric_result)
@@ -181,7 +234,11 @@ class PredModelValidator:
                                                     **opt_pred_args)
 
                     for metric_name, metric in self.test_metrics.items():
-                        metric_result = metric(pred_true, pred)
+                        if metric_name in opt_test_metrics_args:
+                            opt_args = opt_test_metrics_args[metric_name]
+                        else:
+                            opt_args = {}
+                        metric_result = metric(pred_true, pred, **opt_args)
                         if metric_name in self.test_metrics_results:
                             if len(self.test_metrics_results[metric_name]) == i_train_section + 1:
                                 self.test_metrics_results[metric_name][i_train_section].append(metric_result)
@@ -306,7 +363,13 @@ class PredModelEnsembler:
             validate_metrics: None | dict[str, Callable] = None,
             test_data_list: np.ndarray | list[np.ndarray] | None = None,
             test_metrics: None | dict[str, Callable] = None,
-            ):
+            opt_train_metrics_args: None | dict[str, dict[str, Any]] | None = None,
+            opt_validate_metrics_args: None | dict[str, dict[str, Any]] | None = None,
+            opt_test_metrics_args: None | dict[str, dict[str, Any]] | None = None,
+            ) -> pd.DataFrame:
+        """See PredModelValidator.train_validate_test docstring.
+        -> The same just for an ensemble of models.
+        """
 
         self.metrics_df_list = []
         for i_ens in range(self.n_ens):
@@ -322,7 +385,10 @@ class PredModelEnsembler:
                 train_metrics=train_metrics,
                 validate_metrics=validate_metrics,
                 test_data_list=test_data_list,
-                test_metrics=test_metrics
+                test_metrics=test_metrics,
+                opt_train_metrics_args=opt_train_metrics_args,
+                opt_validate_metrics_args=opt_validate_metrics_args,
+                opt_test_metrics_args=opt_test_metrics_args
             )
             metrics_df.insert(0, "i_ens", i_ens)
             self.metrics_df_list.append(metrics_df)
@@ -331,8 +397,15 @@ class PredModelEnsembler:
         return self.metrics_df_all
 
     def combine_metric_dfs(self):
+        """Combine all dataframes from PredModelValidator, into one single df.
+
+        Returns:
+            The resulting dataframe with an additional column: "i_ens" numbering the ensemble
+            members.
+        """
         metrics_df_all = pd.concat(self.metrics_df_list, ignore_index=True)
         return metrics_df_all
+
 
 class PredModelSweeper:
     """Class to sweep parameters of a model and for each parameter setting create a metrics_df.
@@ -346,20 +419,12 @@ class PredModelSweeper:
         """Set the parameter transformer function.
 
         Args:
-            parameter_transformer: The parameter_tranformer is a function that takes a
+            parameter_transformer: The parameter_transformer is a function that takes a
             dict of parameters (with str keys and float/int/str/bool values) as its argument
             and outputs:
-                    out = (
-                            train_data_list,
-                            validate_data_list_of_lists,
-                            test_data_list,
-                            train_sync_steps,
-                            pred_sync_steps,
-                            esn_class,
-                            build_args,
-                            n_ens,
-                            seed
-                        )
+                build_models_args = {ALL THE ARGUMENTS USED TO RUN PredModelEnsembler.build_models}
+                train_validate_test_args = {ALL THE ARGUMENTS USED TO RUN
+                                            PredModelEnsembler.train_validate_test_args}
         """
 
         self.set_parameter_transformer(parameter_transformer)
@@ -367,8 +432,11 @@ class PredModelSweeper:
 
     def set_parameter_transformer(
             self,
-            parameter_transformer: Callable[[dict[str, float | int | str | bool]], tuple]
-    ) -> None:
+            parameter_transformer: Callable[[dict[str, float | int | str | bool]], tuple[dict, dict]]
+        ) -> None:
+        """Set the parameter transformer function.
+        """
+
         self.parameter_transformer = parameter_transformer
 
     def dict_to_dict_of_tuples(self, inp: dict[str, Any]) -> dict[str, tuple]:
@@ -406,31 +474,29 @@ class PredModelSweeper:
 
     def sweep(self, parameters: dict[str, Any]
               ) -> list[tuple[dict[str, float | int | str], pd.DataFrame]]:
+        """Sweep some parameters, and for each point in parameter space to an ensemble test.
+
+        Args:
+            parameters:
+                A pretty free form parameters dictionary.
+
+        Returns:
+            A list of 2-tuples. The list has an element for each parameter-space-point,
+            the tuple is: (parameters for point, metric_df).
+        """
 
         list_of_params = self.unpack_parameters(parameters)
         self.metric_results = []
         for i, params in enumerate(list_of_params):
             print(f"Sweep: {i + 1}/{len(list_of_params)}")
             print(params)
-            out = self.parameter_transformer(params)
-            train_data_list, validate_data_list_of_lists, test_data_list = out[0], out[1], out[2]
-            train_sync_steps, pred_sync_steps = out[3], out[4]
-            esn_class = out[5]
-            build_args = out[6]
-            n_ens, seed = out[7], out[8]
+
+            build_models_args, train_validate_test_args = self.parameter_transformer(params)
 
             ensembler = PredModelEnsembler()
-            ensembler.build_models(
-                model_class=esn_class,
-                build_args=build_args,
-                n_ens=n_ens,
-                seed=seed)
-            metrics_df = ensembler.train_validate_test(
-                train_data_list=train_data_list,
-                validate_data_list_of_lists=validate_data_list_of_lists,
-                train_sync_steps=train_sync_steps,
-                pred_sync_steps=pred_sync_steps,
-                test_data_list=test_data_list)
+            ensembler.build_models(**build_models_args)
+            metrics_df = ensembler.train_validate_test(**train_validate_test_args)
+
             self.metric_results.append((params, metrics_df))
 
         return self.metric_results
