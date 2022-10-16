@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import copy
 import itertools
+import pathlib
 from typing import Callable, Any
 
+import h5py
 import numpy as np
 import pandas as pd
 
@@ -501,6 +503,46 @@ class PredModelSweeper:
 
         return self.metric_results
 
+    def to_hdf5(self, file_path: None | str = None):
+        """Save self.metric_results data to hdf5 file.
+
+        Save the parameters as attributes, and save the pandas df using pd.HDFStore.
+
+        get back self.metric_results by running "from_hdf5".
+        """
+        if file_path is None:
+            file_path = "test.h5"
+
+        data = self.metric_results
+
+        store = pd.HDFStore(file_path)
+        for i_data, data_point in enumerate(data):
+            params, metric_df = data_point
+            group_name = f"{i_data}"
+            store.put(group_name, metric_df)
+            store.get_storer(group_name).attrs.params = params
+        store.close()
+
+    def from_hdf5(self, file_path: str):
+        """Reverse operation to "to_hdf5", i.e. read a saved h5 file and turn it into
+        self.metric_results.
+
+        Args:
+            file_path:
+
+        Returns:
+
+        """
+        metric_results = []
+
+        store = pd.HDFStore(file_path, mode="r")
+        for key in store.keys():
+            params = store.get_storer(key).attrs["params"]
+            metric_df = pd.read_hdf(store, key="2")
+            metric_results.append((params, metric_df))
+        store.close()
+
+        return metric_results
 
 class PredModelEnsembler_old:
     """Class to train, validate and test a prediction model.

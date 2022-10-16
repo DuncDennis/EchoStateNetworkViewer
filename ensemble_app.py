@@ -234,24 +234,23 @@ if __name__ == '__main__':
         with status_container:
             esnutils.st_write_status(status_dict)
 
-    if st.checkbox("Do new thing"):
+    ################### EXPERIMENTAL ############################
 
-        # Test data:
-        train_data_list = [preproc_data[:1000],
-                           preproc_data[1000:2000]]
-        validate_data_list_of_lists = [[preproc_data[1000:1500], preproc_data[1500:2000]],
-                                        [preproc_data[2000:2500], preproc_data[2500:3000]]]
-        test_data_list = [preproc_data[3000: 3500],
-                          preproc_data[3500: 4000]]
+    # Test data:
+    train_data_list = [preproc_data[:1000],
+                       preproc_data[1000:2000]]
+    validate_data_list_of_lists = [[preproc_data[1000:1500], preproc_data[1500:2000]],
+                                   [preproc_data[2000:2500], preproc_data[2500:3000]]]
+    test_data_list = [preproc_data[3000: 3500],
+                      preproc_data[3500: 4000]]
 
-        # test_data_list = None
-
-        train_sync_steps = 100
-        pred_sync_steps = 100
+    train_sync_steps = 100
+    pred_sync_steps = 100
 
     parameters = {
         # "r_dim": [50, 150, 250, 350, 450],
-        "sync_steps": [0, 5, 10, 15, 20, ]
+        "sync_steps": [0, 1, 2, 3, 4, 5, 6, 7],
+        "r_dim": 10
     }
 
 
@@ -280,35 +279,57 @@ if __name__ == '__main__':
             "validate_data_list_of_lists": validate_data_list_of_lists,
             "train_sync_steps": train_sync_steps,
             "pred_sync_steps": pred_sync_steps,
+            "opt_validate_metrics_args": {"VT": {"dt": dt, "lle": 0.9}}
         }
 
         return build_models_args, train_validate_test_args
 
     sweeper = sweep.PredModelSweeper(parameter_transformer)
-    out = sweeper.sweep(parameters)
 
-    mean_vt = []
-    std_vt = []
+    if st.checkbox("Do new thing"):
+        out = sweeper.sweep(parameters)
+        sweeper.to_hdf5()
 
-    import plotly.graph_objects as go
-    fig = go.Figure()
+    out = sweeper.from_hdf5("test.h5")
+
     for part_out in out:
         params = part_out[0]
         metrics_df = part_out[1]
         st.write(params)
         st.write(metrics_df)
-        fig.add_trace(
-            go.Histogram(x=metrics_df["VALIDATE VT"], opacity=0.5)
-        )
-        mean_vt.append(np.mean(metrics_df["VALIDATE VT"]))
-        std_vt.append(np.std(metrics_df["VALIDATE VT"]))
-        #
-        # mean_vt.append(np.mean(metrics_df["TRAIN MSE"]))
-        # std_vt.append(np.std(metrics_df["TRAIN MSE"]))
-    st.plotly_chart(fig)
 
-    fig = px.line(y=mean_vt, error_y=std_vt)
-    st.plotly_chart(fig)
+    # store = pd.HDFStore("test.h5", mode="r")
+    # # st.write(store.groups())
+    # st.write(store.keys())
+    # params = store.get_storer("2").attrs["params"]
+    # params
+    # df_out = pd.read_hdf(store, key="2")
+    # df_out
+    # store.close()
+
+
+    # mean_vt = []
+    # std_vt = []
+    #
+    # import plotly.graph_objects as go
+    # fig = go.Figure()
+    # for part_out in out:
+    #     params = part_out[0]
+    #     metrics_df = part_out[1]
+    #     st.write(params)
+    #     st.write(metrics_df)
+    #     fig.add_trace(
+    #         go.Histogram(x=metrics_df["VALIDATE VT"], opacity=0.5)
+    #     )
+    #     mean_vt.append(np.mean(metrics_df["VALIDATE VT"]))
+    #     std_vt.append(np.std(metrics_df["VALIDATE VT"]))
+    #     #
+    #     # mean_vt.append(np.mean(metrics_df["TRAIN MSE"]))
+    #     # std_vt.append(np.std(metrics_df["TRAIN MSE"]))
+    # st.plotly_chart(fig)
+    #
+    # fig = px.line(y=mean_vt, error_y=std_vt)
+    # st.plotly_chart(fig)
 
     if st.checkbox("Do it"):
         metric_df = build_train_predict_ensemble(n_ens=n_ens,
