@@ -108,8 +108,8 @@ pred_sync_steps = 100
 # TRACKED PARAMETERS:
 parameters={
     "r_dim": [100, 200, 300],
-    "dummy": [1, 2],
-    "dummy2": [1]
+    "n_rad": [0.1, 0.5, 0.7],
+    "w_in_scale": [0.5, 1.0]
 }
 
 # PARAMETER TO ARGUMENT TRANSFOMER FUNCTION:
@@ -126,6 +126,8 @@ def parameter_transformer(parameters: dict[str, float | int | str]):
     """
 
     build_args["r_dim"] = parameters["r_dim"]
+    build_args["n_rad"] = parameters["n_rad"]
+    build_args["w_in_scale"] = parameters["w_in_scale"]
 
     build_models_args = {"model_class": esn_class,
                          "build_args": build_args,
