@@ -4,7 +4,6 @@
 
 """
 
-
 from __future__ import annotations
 from datetime import datetime
 
@@ -17,8 +16,9 @@ import src.ensemble_src.sweep_experiments as sweep
 parameters={
     # Data Meta:
     "system": ["Lorenz63"],
-    "dt": 0.01,
+    "dt": 0.05,
     "normalize_and_center": True,
+    "lle": 0.905,
 
     # Data steps (used in sweep.time_series_creator(ARGS):
     "t_train_disc": [100],
@@ -27,8 +27,8 @@ parameters={
     "t_validate_disc": [500],
     "t_validate_sync": [100],
     "t_validate": [1000],
-    "n_train_sects": [3],
-    "n_validate_sects": [3],
+    "n_train_sects": [2],
+    "n_validate_sects": [10],
 
     # ESN Meta:
     "esn_type": ["ESN_normal"],
@@ -38,17 +38,17 @@ parameters={
     "n_rad": [0.1],
     "n_avg_deg": [6.0],
     "n_type_opt": ["erdos_renyi"],
-    "r_to_r_gen_opt": ["output_bias", "linear"],
+    "r_to_r_gen_opt": ["output_bias"],
     "act_fct_opt": ["tanh"],
     "node_bias_opt": ["random_bias"],
-    "bias_scale": [0.1],
+    "bias_scale": [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6],
     "w_in_opt": ["random_sparse"],
     "w_in_scale": [1.0],
     "input_noise_scale": [0.0],
 
     # Experiment parameters:
     "seed": [308],
-    "n_ens": 2
+    "n_ens": 10
 }
 
 
@@ -84,18 +84,22 @@ def parameter_transformer(parameters: dict[str, float | int | str]):
     n_ens = p["n_ens"]
     seed = p["seed"]
 
+    ### Output:
 
+    # Build model args:
     build_models_args = {"model_class": esn_class,
                          "build_args": build_args,
                          "n_ens": n_ens,
                          "seed": seed}
 
+    # Train validate_test_args:
     train_validate_test_args = {
         "train_data_list": train_data_list,
         "validate_data_list_of_lists": validate_data_list_of_lists,
         "train_sync_steps": p["t_train_sync"],
         "validate_sync_steps": p["t_validate_sync"],
-        # "opt_validate_metrics_args": {"VT": {"dt": p["t_validate_sync"], }}
+        "opt_validate_metrics_args": {"VT": {"dt": p["dt"],
+                                             "lle": p["lle"]}}
     }
 
     return build_models_args, train_validate_test_args

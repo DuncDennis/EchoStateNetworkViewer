@@ -33,6 +33,7 @@ with st.sidebar:
     # LOAD FILE:
     file = st.file_uploader("Choose File", type="pkl", accept_multiple_files=False)
     df: None | pd.DataFrame = None
+    filtered_df: None | pd.DataFrame = None
     if file is not None:
         df = pd.read_pickle(file)
 
@@ -67,76 +68,93 @@ with st.sidebar:
 
         utils.st_line()
 
-# SHOW TOTAL FILTERED DF:
-st.header("Show data: ")
-with st.expander("Show data"):
-    st.write(filtered_df)
-    st.write(filtered_df.shape)
+if filtered_df is not None:
 
-# AGGREGATE RESULTS:
-st.header("Aggregate data: ")
+    # SHOW TOTAL FILTERED DF:
+    st.header("Show data: ")
+    with st.expander("Show data"):
+        st.write(filtered_df)
+        st.write(filtered_df.shape)
 
-# All paramter columns
-parameter_cols = [x for x in filtered_df.columns if x.startswith("P ")]
+    # AGGREGATE RESULTS:
+    st.header("Aggregate data: ")
 
-# Choose Metrics:
-metrics_cols = [x for x in filtered_df.columns if x.startswith("M ")]
-chosen_metrics = utils.st_selectbox_with_all("Select metrics",
-                                             metrics_cols,
-                                             disable_if_only_one_opt=True)
+    # All paramter columns
+    parameter_cols = [x for x in filtered_df.columns if x.startswith("P ")]
 
-# Do statistics:
-group_obj = filtered_df.groupby(parameter_cols, as_index=False)
-df_agg = group_obj[chosen_metrics].agg(stat_funcs).reset_index(inplace=False)
-st.write(df_agg)
-
-# Plotting:
-st.header("Plotting: ")
-
-sweep_params = [x for x in parameter_cols if len(filtered_df[x].unique()) > 1]
-sweep_param = st.selectbox("Sweep parameter", sweep_params)
-non_sweep_params = [x for x in parameter_cols if x != sweep_param]
-
-other_params = df_agg.value_counts(non_sweep_params).index
-unique_non_sweep_param_values = other_params.values
-# st.write(unique_non_sweep_param_values.shape)
-
-# Choose averaging:
-avg_mode = st.selectbox("Averaging", ["mean and std", "median and quartile"])
-if avg_mode == "mean and std":
-    avg_str = "mean"
-    error_high = "std_high"
-    error_low = "std_low"
-elif avg_mode == "median and quartile":
-    avg_str = "median"
-    error_high = "quartile_high"
-    error_low = "quartile_low"
-
-for metric in chosen_metrics:
-    fig = go.Figure()
-    for value_combination in unique_non_sweep_param_values:
-
-        # Group by other sweep variables -> maybe do with GroupBy?.
-        condition_df: None | pd.DataFrame = None
-        for non_sweep_param, value in zip(non_sweep_params, value_combination):
-            condition_series = df_agg[non_sweep_param] == value
-            if condition_df is None:
-                condition_df = condition_series
+    # Optionally remove all cols that only have one unique value:
+    if st.checkbox("Remove all non-sweep variables"):
+        parameter_cols_multiple_vals = []
+        for col in parameter_cols:
+            if len(filtered_df[col].unique()) == 1:
+                filtered_df.drop(col, inplace=True, axis=1)
             else:
-                condition_df = condition_df & condition_series
-        sub_df = df_agg[condition_df]
-        name = str(list(zip(non_sweep_params, value_combination)))
-        fig.add_trace(
-            go.Scatter(x = sub_df[sweep_param],
-                       y=sub_df[(metric, avg_str)],
-                       error_y={"array": sub_df[(metric, error_high)],
-                                "arrayminus": sub_df[(metric, error_low)]},
-                       name=name
-                       )
-        )
-    fig.update_yaxes(title=metric)
-    fig.update_xaxes(title=sweep_param)
-    fig.update_layout(title=avg_mode)
-    st.plotly_chart(fig)
+                parameter_cols_multiple_vals.append(col)
+        parameter_cols = parameter_cols_multiple_vals
 
+    # Choose Metrics:
+    metrics_cols = [x for x in filtered_df.columns if x.startswith("M ")]
+    chosen_metrics = utils.st_selectbox_with_all("Select metrics",
+                                                 metrics_cols,
+                                                 default_select_all_bool=True,
+                                                 disable_if_only_one_opt=True)
+    # Do statistics:
+    group_obj = filtered_df.groupby(parameter_cols, as_index=False)
+    df_agg = group_obj[chosen_metrics].agg(stat_funcs).reset_index(inplace=False)
 
+    with st.expander("Show aggregated data: "):
+        st.table(df_agg)
+
+    # Plotting:
+    st.header("Plotting: ")
+
+    sweep_params = [x for x in parameter_cols if len(filtered_df[x].unique()) > 1]
+    sweep_param = st.selectbox("Sweep parameter", sweep_params)
+    non_sweep_params = [x for x in parameter_cols if x != sweep_param]
+
+    if len(non_sweep_params) > 0:
+        other_params = df_agg.value_counts(non_sweep_params).index
+        unique_non_sweep_param_values = other_params.values
+    else:
+        unique_non_sweep_param_values = [None]
+    # Choose averaging:
+    avg_mode = st.selectbox("Averaging", ["mean and std", "median and quartile"])
+    if avg_mode == "mean and std":
+        avg_str = "mean"
+        error_high = "std_high"
+        error_low = "std_low"
+    elif avg_mode == "median and quartile":
+        avg_str = "median"
+        error_high = "quartile_high"
+        error_low = "quartile_low"
+
+    for metric in chosen_metrics:
+        fig = go.Figure()
+        for value_combination in unique_non_sweep_param_values:
+
+            if value_combination is not None:
+                # Group by other sweep variables -> maybe do with GroupBy?.
+                condition_df: None | pd.DataFrame = None
+                for non_sweep_param, value in zip(non_sweep_params, value_combination):
+                    condition_series = df_agg[non_sweep_param] == value
+                    if condition_df is None:
+                        condition_df = condition_series
+                    else:
+                        condition_df = condition_df & condition_series
+                sub_df = df_agg[condition_df]
+                name = str(list(zip(non_sweep_params, value_combination)))
+            else:
+                sub_df = df_agg
+                name=None
+            fig.add_trace(
+                go.Scatter(x = sub_df[sweep_param],
+                           y=sub_df[(metric, avg_str)],
+                           error_y={"array": sub_df[(metric, error_high)],
+                                    "arrayminus": sub_df[(metric, error_low)]},
+                           name=name
+                           )
+            )
+        fig.update_yaxes(title=metric)
+        fig.update_xaxes(title=sweep_param)
+        fig.update_layout(title=avg_mode)
+        st.plotly_chart(fig)
