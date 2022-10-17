@@ -119,7 +119,7 @@ class _SynonymDict:
         return flag
 
 
-def _remove_invalid_args(func, args_dict):
+def remove_invalid_args(func, args_dict):
     """Return dictionary of valid args and kwargs with invalid ones removed
 
     CREDIT: Taken from https://github.com/GLSRC/rescomp.
