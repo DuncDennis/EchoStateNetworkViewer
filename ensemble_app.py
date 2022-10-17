@@ -249,8 +249,8 @@ if __name__ == '__main__':
 
     parameters = {
         # "r_dim": [50, 150, 250, 350, 450],
-        "sync_steps": [0, 1, 2, 3, 4, 5, 6, 7],
-        "r_dim": 10
+        "sync_steps": [5, 10],
+        "r_dim": [100, 200, 300]
     }
 
 
@@ -268,6 +268,8 @@ if __name__ == '__main__':
 
         train_sync_steps = parameters["sync_steps"]
         pred_sync_steps = parameters["sync_steps"]
+
+        build_args["r_dim"] = parameters["r_dim"]
 
         build_models_args = {"model_class": esn_class,
                              "build_args": build_args,
@@ -288,15 +290,15 @@ if __name__ == '__main__':
 
     if st.checkbox("Do new thing"):
         out = sweeper.sweep(parameters)
-        sweeper.to_hdf5()
+        sweeper.to_hdf5(file_path="test2.h5")
 
-    out = sweeper.from_hdf5("test.h5")
+    # out = sweeper.from_hdf5("test2.h5")
 
-    for part_out in out:
-        params = part_out[0]
-        metrics_df = part_out[1]
-        st.write(params)
-        st.write(metrics_df)
+    # for part_out in out:
+    #     params = part_out[0]
+    #     metrics_df = part_out[1]
+    #     st.write(params)
+    #     st.write(metrics_df)
 
     # store = pd.HDFStore("test.h5", mode="r")
     # # st.write(store.groups())
@@ -331,30 +333,30 @@ if __name__ == '__main__':
     # fig = px.line(y=mean_vt, error_y=std_vt)
     # st.plotly_chart(fig)
 
-    if st.checkbox("Do it"):
-        metric_df = build_train_predict_ensemble(n_ens=n_ens,
-                                                 build_args=build_args,
-                                                 _esn_class=esn_class,
-                                                 seed=seed,
-                                                 preproc_data=preproc_data,
-                                                 nr_splits=nr_splits,
-                                                 t_train_disc=t_train_disc,
-                                                 t_train_sync=t_train_sync,
-                                                 t_train=t_train,
-                                                 t_pred_disc=t_pred_disc,
-                                                 t_pred_sync=t_pred_sync,
-                                                 t_pred=t_pred
-                                                 )
-        st.write(metric_df)
-
-        for metric in metric_df.columns:
-            if metric.startswith("TRAIN") or metric.startswith("PREDICT"):
-                fig = px.histogram(metric_df, x=metric, color="Data Fold", barmode="group",
-                                   opacity=1)
-                st.plotly_chart(fig)
-                fig = px.histogram(metric_df, x=metric, color="ESN", barmode="group",
-                                   opacity=1)
-                st.plotly_chart(fig)
+    # if st.checkbox("Do it"):
+    #     metric_df = build_train_predict_ensemble(n_ens=n_ens,
+    #                                              build_args=build_args,
+    #                                              _esn_class=esn_class,
+    #                                              seed=seed,
+    #                                              preproc_data=preproc_data,
+    #                                              nr_splits=nr_splits,
+    #                                              t_train_disc=t_train_disc,
+    #                                              t_train_sync=t_train_sync,
+    #                                              t_train=t_train,
+    #                                              t_pred_disc=t_pred_disc,
+    #                                              t_pred_sync=t_pred_sync,
+    #                                              t_pred=t_pred
+    #                                              )
+    #     st.write(metric_df)
+    #
+    #     for metric in metric_df.columns:
+    #         if metric.startswith("TRAIN") or metric.startswith("PREDICT"):
+    #             fig = px.histogram(metric_df, x=metric, color="Data Fold", barmode="group",
+    #                                opacity=1)
+    #             st.plotly_chart(fig)
+    #             fig = px.histogram(metric_df, x=metric, color="ESN", barmode="group",
+    #                                opacity=1)
+    #             st.plotly_chart(fig)
 
 
     # st.write(preproc_data.shape)

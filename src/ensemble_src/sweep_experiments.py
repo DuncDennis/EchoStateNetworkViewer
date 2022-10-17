@@ -1,10 +1,13 @@
 """File to create parameter-sweep and ensemble based experiments for RC predictions. """
+
 from __future__ import annotations
 
 import copy
 import itertools
+import os
 import pathlib
-from typing import Callable, Any
+from datetime import date
+from typing import Callable, Any, List, Tuple
 
 import h5py
 import numpy as np
@@ -259,9 +262,20 @@ class PredModelValidator:
     def metrics_to_pandas(self) -> pd.DataFrame:
         """Transform the metrics dictionaries to a pandas dataframe.
         """
+
+        train_metric_prefix = "M TRAIN "
+        validate_metric_prefix = "M VALIDATE "
+        test_metric_prefix = "M TEST "
+
+        train_section_name = "i train sect"
+        validate_section_name = "i val sect"
+        test_section_name = "i test sect"
+
         train_df = pd.DataFrame.from_dict(self.train_metrics_results)
-        train_df.rename(mapper=lambda x: f"TRAIN {x}", inplace=True, axis=1)
-        train_df.insert(0, column="train sect", value=train_df.index)
+        train_df.rename(mapper=lambda x: f"{train_metric_prefix}{x}",
+                        inplace=True,
+                        axis=1)
+        train_df.insert(0, column=train_section_name, value=train_df.index)
 
         validate_df = None
         for i_train_sec in range(self.n_train_secs):
@@ -269,15 +283,17 @@ class PredModelValidator:
                                  self.validate_metrics_results.items()}
 
             sub_validate_df = pd.DataFrame.from_dict(sub_validate_dict)
-            sub_validate_df.rename(mapper=lambda x: f"VALIDATE {x}", inplace=True, axis=1)
-            sub_validate_df.insert(0, column="val sect", value=sub_validate_df.index)
-            sub_validate_df.insert(0, column="train sect", value=i_train_sec)
+            sub_validate_df.rename(mapper=lambda x: f"{validate_metric_prefix}{x}",
+                                   inplace=True,
+                                   axis=1)
+            sub_validate_df.insert(0, column=validate_section_name, value=sub_validate_df.index)
+            sub_validate_df.insert(0, column=train_section_name, value=i_train_sec)
 
             if validate_df is None:
                 validate_df = sub_validate_df
             else:
                 validate_df = pd.concat([validate_df, sub_validate_df])
-        metrics_df = pd.merge(train_df, validate_df, on="train sect")
+        metrics_df = pd.merge(train_df, validate_df, on=train_section_name)
 
         if self.n_test_secs is not None:
             test_df = None
@@ -286,23 +302,23 @@ class PredModelValidator:
                                      self.test_metrics_results.items()}
 
                 sub_test_df = pd.DataFrame.from_dict(sub_test_dict)
-                sub_test_df.rename(mapper=lambda x: f"TEST {x}", inplace=True, axis=1)
-                sub_test_df.insert(0, column="test sect", value=sub_test_df.index)
-                sub_test_df.insert(0, column="train sect", value=i_train_sec)
+                sub_test_df.rename(mapper=lambda x: f"{test_metric_prefix}{x}", inplace=True, axis=1)
+                sub_test_df.insert(0, column=test_section_name, value=sub_test_df.index)
+                sub_test_df.insert(0, column=train_section_name, value=i_train_sec)
 
                 if test_df is None:
                     test_df = sub_test_df
                 else:
                     test_df = pd.concat([test_df, sub_test_df])
-            metrics_df = pd.merge(metrics_df, test_df, on="train sect")
+            metrics_df = pd.merge(metrics_df, test_df, on=train_section_name)
 
         cols = metrics_df.columns.tolist()
         cols_new = cols.copy()
 
         if self.n_test_secs is not None:
-            sec_cols = ["train sect", "val sect", "test sect"]
+            sec_cols = [train_section_name, validate_section_name, test_section_name]
         else:
-            sec_cols = ["train sect", "val sect"]
+            sec_cols = [train_section_name, validate_section_name]
 
         for section in sec_cols[::-1]:
             index = cols_new.index(section)
@@ -331,6 +347,8 @@ class PredModelEnsembler:
                      n_ens: int = 1,
                      seed: int = 0) -> None:
         """Function to build an ensemble of models each with a different seed.
+
+        TODO: Add model metrics? E.g. measure some network quantities?.
 
         Saves all built models to the list: self.built_models.
 
@@ -372,6 +390,7 @@ class PredModelEnsembler:
         """See PredModelValidator.train_validate_test docstring.
         -> The same just for an ensemble of models.
         """
+        i_ens_name = "i ens"
 
         self.metrics_df_list = []
         for i_ens in range(self.n_ens):
@@ -392,7 +411,7 @@ class PredModelEnsembler:
                 opt_validate_metrics_args=opt_validate_metrics_args,
                 opt_test_metrics_args=opt_test_metrics_args
             )
-            metrics_df.insert(0, "i_ens", i_ens)
+            metrics_df.insert(0, i_ens_name, i_ens)
             self.metrics_df_list.append(metrics_df)
 
         self.metrics_df_all = self.combine_metric_dfs()
@@ -475,16 +494,19 @@ class PredModelSweeper:
         return list_of_params
 
     def sweep(self, parameters: dict[str, Any]
-              ) -> list[tuple[dict[str, float | int | str], pd.DataFrame]]:
+              ) -> pd.DataFrame:
         """Sweep some parameters, and for each point in parameter space to an ensemble test.
+
+        save results internally to self.metric_results:
+            A list of 2-tuples. The list has an element for each parameter-space-point,
+            the tuple is: (parameters for point, metric_df).
 
         Args:
             parameters:
                 A pretty free form parameters dictionary.
 
         Returns:
-            A list of 2-tuples. The list has an element for each parameter-space-point,
-            the tuple is: (parameters for point, metric_df).
+            Pandas dataframe containing all the information.
         """
 
         list_of_params = self.unpack_parameters(parameters)
@@ -501,219 +523,181 @@ class PredModelSweeper:
 
             self.metric_results.append((params, metrics_df))
 
-        return self.metric_results
+        results_df = self.to_big_pandas(self.metric_results)
+        return results_df
+
+    @staticmethod
+    def to_big_pandas(metric_results) -> pd.DataFrame:
+        """ Turn metric_results into a big Dataframe with all the parameters as columns.
+
+        Returns:
+            Pandas DataFrame which has additional parameters columns compared
+             to ensembler metrics_df df.
+        """
+        parameter_prefix = "P "
+        big_df: pd.DataFrame | None = None
+        for (params, metric_df) in metric_results:
+            nr_rows = len(metric_df.index)
+            params_df = pd.DataFrame.from_dict({f"{parameter_prefix}{k}": [v] * nr_rows for k, v
+                                                in params.items()})
+
+            out = pd.concat([params_df, metric_df],
+                            join="inner",
+                            axis=1)
+            if big_df is None:
+                big_df = out
+            else:
+                big_df = pd.concat([big_df, out], axis=0, ignore_index=True)
+        return big_df
 
     def to_hdf5(self, file_path: None | str = None):
         """Save self.metric_results data to hdf5 file.
+        # TODO: Not really used.
+        USAGE: One can optionally save the results to a hdf5 file, which then can be loaded,
+        using the from_hdf5 function.
 
         Save the parameters as attributes, and save the pandas df using pd.HDFStore.
 
         get back self.metric_results by running "from_hdf5".
         """
         if file_path is None:
-            file_path = "test.h5"
+            file_path = "default_file_path.h5"
 
         data = self.metric_results
 
         store = pd.HDFStore(file_path)
         for i_data, data_point in enumerate(data):
             params, metric_df = data_point
-            group_name = f"{i_data}"
+            group_name = f"sweep_{i_data}"
             store.put(group_name, metric_df)
             store.get_storer(group_name).attrs.params = params
         store.close()
 
-    def from_hdf5(self, file_path: str):
+    @staticmethod
+    def from_hdf5(file_path: str
+                  ) -> list[tuple[Any, object]]:
         """Reverse operation to "to_hdf5", i.e. read a saved h5 file and turn it into
         self.metric_results.
-
+        # TODO: Not really used.
         Args:
-            file_path:
+            file_path: The path to the .h5 file
 
         Returns:
-
+            A list of 2-tuples. The list has an element for each parameter-space-point,
+            the tuple is: (parameters for point, metric_df).
         """
         metric_results = []
 
         store = pd.HDFStore(file_path, mode="r")
         for key in store.keys():
             params = store.get_storer(key).attrs["params"]
-            metric_df = pd.read_hdf(store, key="2")
+            metric_df = pd.read_hdf(store, key=key)
             metric_results.append((params, metric_df))
         store.close()
 
         return metric_results
 
-class PredModelEnsembler_old:
-    """Class to train, validate and test a prediction model.
 
-    - Has a build function, where all the parameters are defined.
-    - Has a train function, where the model is trained.
-    - Has a predict function, to run the validation.
-    - Has a test function, for the final testing of the data.
+def save_pandas_to_pickles(df: pd.DataFrame,
+                           name: str | None = None,
+                           directory: None | str = None) -> str:
+    """Save pandas DF to pickle.
+
+    If directory is None: Save to relative directory of file.
+    The filename in directory will be: "name__date__nr"
+    nr is a 3-digit number xxx counting up, if it's the same name and date.
+    date will be dd_mm_yyyy.
+
+    Args:
+        df: The dataframe to save.
+        name: The base name identified of the file.
+        directory: The directory to save it to.
     """
 
-    def __init__(self) -> None:
-        self.model_objects: list | None = None
-        self.master_seed: int | None = None
-        self.seeds: list[int] | None = None
-        self.rng: np.random.Generator | None = None
-        self.n_ens = None
+    # Create a path "directory" if it does not exist.
+    if directory is not None:
+        pathlib.Path(directory).mkdir(parents=True, exist_ok=True)
+    else:
+        directory = pathlib.Path().absolute()
 
-        self.train_metrics: None | dict[str, Callable] = None
-        self.predict_metrics: None | dict[str, Callable] = None
+    if name is None:
+        name = "default_name"
 
-        self.train_metrics_results: None | dict[str, list] = None
-        self.predict_metrics_results: None | dict[str, list] = None
+    today = date.today().strftime("%d_%m_%Y")
+    file_name_no_nr = f"{name}__{today}"
 
-    def build_models(self,
-                     model_class,
-                     build_args: None | dict[str, Any] = None,
-                     n_ens: int = 1,
-                     seed: int = 0) -> None:
-        """Function to build an ensemble of models each with a different seed.
+    # Other files in directory with same name and date:
+    potential_other_files = [x for x in os.listdir(directory) if x.startswith(file_name_no_nr)]
 
-        Saves all built models to the list: self.model_objects.
+    if len(potential_other_files) == 0:
+        file_name = f"{file_name_no_nr}__000.pkl"
+    else:
+        previous_highest_nr = max([int(x.split(".")[0].split("__")[-1]) for x in potential_other_files])
+        file_name = f"{file_name_no_nr}__{previous_highest_nr + 1:03d}.pkl"
 
+    file_path = pathlib.Path.joinpath(directory, file_name)
+    df.to_pickle(file_path)
+    return file_path
+
+
+# def load_pandas_from_pickle(name: str,
+#                             date:
+#                             directory: str | None)
+
+
+def metrics_from_hdf5(file_path: str ) -> list[tuple[Any, object]]:
+        """Reverse operation to "sweeper.to_hdf5", i.e. read a saved h5 file and turn it into
+        self.metric_results.
+        # TODO: Not really used.
         Args:
-            model_object: The model object, as for example ESN_normal()
-            build_args: The arguments parsed to model_object.build(**build_args)
-            n_ens: The ensemble size.
-            seed: The random seed.
-        """
-        self.n_ens = n_ens
-        self.master_seed = seed
-        self.rng = np.random.default_rng(self.master_seed)
-        self.seeds = self.rng.integers(0, 10000000, size=self.n_ens)
-
-        self.model_objects = []
-        for seed in self.seeds:
-            with utilities.temp_seed(seed):
-                model_object = model_class()
-                build_args = utilities._remove_invalid_args(model_object.build, build_args)
-                model_object.build(**build_args)
-                self.model_objects.append(model_object)
-
-    def train_models(self,
-                     train_data: np.ndarray,
-                     sync_steps: int = 0,
-                     train_metrics: None | dict[str, Callable] = None,
-                     **train_args
-                     ) -> None:
-        """Train all the models in the self.model_objects list.
-
-        Calls for each model_object in self.model_objects list the model_object.train(train_data,
-        sync_steps=sync_steps, **train_args) function, which returns train_fit, and train_true.
-
-        For each model_object and each train_metric given in the train_metrics dictionary, a
-        value is saved in self.train_metric_results.
-
-        Args:
-            train_data: The training data of shape: (train_steps + sync_steps, sys_dim).
-            sync_steps: The steps used for synchronization.
-            train_metrics: A dictionary of functions which are the train metrics.
-            **train_args: Optional train args parsed to model_object.train
-
-        """
-
-        if train_metrics is None:
-            self.train_metrics = DEFAULT_TRAIN_METRICS
-        self.train_metrics_results = {}
-        for model in self.model_objects:
-            train_fit, train_true = model.train(train_data,
-                                                sync_steps=sync_steps,
-                                                **train_args)
-            for metric_name, metric in self.train_metrics.items():
-                if metric_name in self.train_metrics_results:
-                    self.train_metrics_results[metric_name].append(metric(train_true, train_fit))
-                else:
-                    self.train_metrics_results[metric_name] = [metric(train_true, train_fit)]
-
-    def predict_models(self,
-                       predict_data: np.ndarray,
-                       sync_steps: int = 0,
-                       predict_metrics: None | dict[str, Callable] = None,
-                       **pred_args
-                       ) -> None:
-        """Predict with all the models in the self.model_objects list.
-
-        Calls for each model_object in self.model_objects list the
-        model_object.predict(predict_data, sync_steps=sync_steps, **pred_args) function,
-        which returns pred and pred_true.
-
-        For each model_object and each predict_metric given in the predict_metrics dictionary, a
-        value is saved in self.predict_metrics_results.
-
-        Args:
-            predict_data: The prediction/test data of shape: (train_steps + sync_steps, sys_dim).
-            sync_steps: The steps used for synchronization.
-            predict_metrics: A dictionary of functions which are the prediction metrics.
-            **pred_args: Optional predict args parsed to model_object.predict
-        """
-
-        if predict_metrics is None:
-            self.predict_metrics = DEFAULT_PREDICT_METRICS
-        self.predict_metrics_results = {}
-        for model in self.model_objects:
-            pred, pred_true = model.predict(predict_data,
-                                                sync_steps=sync_steps,
-                                                **pred_args)
-            for metric_name, metric in self.predict_metrics.items():
-                if metric_name in self.predict_metrics_results:
-                    self.predict_metrics_results[metric_name].append(metric(pred_true, pred))
-                else:
-                    self.predict_metrics_results[metric_name] = [metric(pred_true, pred)]
-
-    def return_pandas(self) -> pd.DataFrame:
-        """Return the train and predict metrics as a pandas dataframe.
+            file_path: The path to the .h5 file
 
         Returns:
-            Pandas Dataframe with the columns: "TRAIN {train metric}" and "PREDICT
-            {predict metric}".
+            A list of 2-tuples. The list has an element for each parameter-space-point,
+            the tuple is: (parameters for point, metric_df).
         """
-        train_df = pd.DataFrame.from_dict(self.train_metrics_results)
-        train_df.rename(mapper=lambda x: f"TRAIN {x}", inplace=True, axis=1)
-        predict_df = pd.DataFrame.from_dict(self.predict_metrics_results)
-        predict_df.rename(mapper=lambda x: f"PREDICT {x}", inplace=True, axis=1)
-        return pd.concat([train_df, predict_df], axis=1)
+        metric_results = []
+
+        store = pd.HDFStore(file_path, mode="r")
+        for key in store.keys():
+            params = store.get_storer(key).attrs["params"]
+            metric_df = pd.read_hdf(store, key=key)
+            metric_results.append((params, metric_df))
+        store.close()
+
+        return metric_results
 
 
-# class PredModelValidator(PredModelEnsembler):
-#     """Class to Validate the PredModelEnsemble on different train and predict sets.
-#
-#     - Create an error function on the validation set.
-#     """
-#
-#     def __init__(self):
-#         PredModelEnsembler.__init__(self)
-#
-#         # outer list corresponds to train sections, inner list to the ensemble.
-#         self.trained_models_secs: list[list] | None = None
-#
-#         self.train_metrics_results_secs: list[dict[str, list]] | None = None
-#
-#
-#     def train_models(self,
-#                      train_data_list: list[np.ndarray],
-#                      sync_steps: int = 0,
-#                      train_metrics: None | dict[str, Callable] = None,
-#                      **train_args
-#                      ) -> None:
-#         for train_data in train_data_list:
-#             super(PredModelValidator, self).train_models(train_data,
-#                                                          sync_steps=sync_steps,
-#                                                          train_metrics=train_metrics,
-#                                                          **train_args)
-#             # Save trained models:
-#             if self.trained_models_secs is None:
-#                 self.trained_models_secs = [copy.deepcopy(self.model_objects)]
-#             else:
-#                 self.trained_models_secs.append(copy.deepcopy(self.model_objects))
-#
-#             # Save train metrics:
-#
+def results_to_param_sweep(metric_results: list[tuple[Any, object]],
+                          stripped: bool = True) -> dict[str, Any]:
+    """Reverse operation to create the parameter sweep dict from the metric results.
 
+    # TODO not really used.
 
+    Take the output from ProdModelSweeper.sweep (-> metric_results) and use it here
+    to create the sweep parameter dict again: {param1: [1, 2, 3], param2: 4, ...}
+
+    Args:
+        metric_results: The output from ProdModelSweeper.sweep().
+        stripped:
+
+    Returns:
+        The sweep parameter dict, i.e. the input to ProdModelSweeper.sweep(parameters).
+    """
+
+    params_dict = {}
+    for data_point in metric_results:
+        params = data_point[0]
+        for key, val in params.items():
+            if key in params_dict.keys():
+                if stripped:
+                    if val not in params_dict[key]:
+                        params_dict[key].append(val)
+                else:
+                    params_dict[key].append(val)
+            else:
+                params_dict[key] = [val, ]
+    return params_dict
 
 
 class StatisticalModelTester():
