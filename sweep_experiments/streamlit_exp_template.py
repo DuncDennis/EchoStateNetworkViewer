@@ -97,19 +97,18 @@ with st.sidebar:
 # NON-TRACKED PARAMETERS:
 train_data_list = [preproc_data[:1000],
                    preproc_data[1000:2000]]
-validate_data_list_of_lists = [[preproc_data[1000:1500], preproc_data[1500:2000]],
-                               [preproc_data[2000:2500], preproc_data[2500:3000]]]
-test_data_list = [preproc_data[3000: 3500],
-                  preproc_data[3500: 4000]]
+validate_data_list_of_lists = [[preproc_data[1000:1500], preproc_data[1500:2000], preproc_data[2000:2500]],
+                               [preproc_data[2000:2500], preproc_data[2500:3000], preproc_data[3000:3500]]]
+# test_data_list = [preproc_data[3000: 3500],
+#                   preproc_data[3500: 4000]]
 
-train_sync_steps = 100
-pred_sync_steps = 100
+train_sync_steps = 150
+pred_sync_steps = 150
 
 # TRACKED PARAMETERS:
 parameters={
-    "r_dim": [100, 200, 300],
-    "n_rad": [0.1, 0.5, 0.7],
-    "w_in_scale": [0.5, 1.0]
+    "r_dim": [100, 200, 300, 400, 500, 600, 700, 800],
+    "n_rad": [0.1, 0.5, 0.9],
 }
 
 # PARAMETER TO ARGUMENT TRANSFOMER FUNCTION:
@@ -127,7 +126,6 @@ def parameter_transformer(parameters: dict[str, float | int | str]):
 
     build_args["r_dim"] = parameters["r_dim"]
     build_args["n_rad"] = parameters["n_rad"]
-    build_args["w_in_scale"] = parameters["w_in_scale"]
 
     build_models_args = {"model_class": esn_class,
                          "build_args": build_args,

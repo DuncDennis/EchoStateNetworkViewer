@@ -1298,3 +1298,27 @@ class LinearSystem(SimBaseRungeKutta):
         """
 
         return np.array(np.dot(self.A, x))
+
+
+SYSTEM_DICT = {
+    "Lorenz63": Lorenz63,
+    "Roessler": Roessler,
+    "ComplexButterfly": ComplexButterfly,
+    "Chen": Chen,
+    "ChuaCircuit": ChuaCircuit,
+    "Thomas": Thomas,
+    "WindmiAttractor": WindmiAttractor,
+    "Rucklidge": Rucklidge,
+    "SimplestQuadraticChaotic": SimplestQuadraticChaotic,
+    "SimplestCubicChaotic": SimplestCubicChaotic,
+    "SimplestPiecewiseLinearChaotic": SimplestPiecewiseLinearChaotic,
+    "DoubleScroll": DoubleScroll,
+    "LotkaVolterra": LotkaVolterra,
+    "SimplestDrivenChaotic": SimplestDrivenChaotic,
+    "UedaOscillator": UedaOscillator,
+    "Henon": Henon,
+    "Logistic": Logistic,
+    "KuramotoSivashinsky": KuramotoSivashinsky,
+    "Lorenz96": Lorenz96,
+    "LinearSystem": LinearSystem
+}

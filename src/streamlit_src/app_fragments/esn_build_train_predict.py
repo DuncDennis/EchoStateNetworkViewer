@@ -222,7 +222,7 @@ def build(esn_type: str, seed: int, x_dim: int, build_args: dict[str, Any]) -> E
     for i_seed, seed_arg in enumerate(seed_args):
         build_args[seed_arg] = seeds[i_seed]
 
-    build_kwargs = utilities._remove_invalid_args(esn.build, build_args)
+    build_kwargs = utilities.remove_invalid_args(esn.build, build_args)
 
     esn.build(x_dim, **build_kwargs)
     return esn
