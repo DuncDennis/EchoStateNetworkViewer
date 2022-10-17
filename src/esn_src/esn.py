@@ -1557,3 +1557,6 @@ class ESN_r_process(_ResCompCore,
 
         self.set_default_res_state(default_res_state=default_res_state)
         self.set_reg_param(reg_param=reg_param)
+
+ESN_DICT = {"ESN_normal": ESN_normal,
+            "ESN_r_process": ESN_r_process}

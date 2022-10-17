@@ -6,7 +6,7 @@
 
 
 from __future__ import annotations
-import time
+from datetime import datetime
 
 import src.esn_src.simulations as sims
 import src.esn_src.esn as esn
@@ -75,10 +75,6 @@ def parameter_transformer(parameters: dict[str, float | int | str]):
     ts_creator_args = utilities.remove_invalid_args(sweep.time_series_creator, p)
     train_data_list, validate_data_list_of_lists = sweep.time_series_creator(sys_obj,
                                                                              **ts_creator_args)
-    for i in validate_data_list_of_lists:
-        for j in i:
-            print(j.shape)
-
     # Build ESN:
     esn_class = esn.ESN_DICT[p["esn_type"]]
     build_args = utilities.remove_invalid_args(esn_class.build, p)
@@ -107,21 +103,27 @@ def parameter_transformer(parameters: dict[str, float | int | str]):
 # Set up Sweeper.
 sweeper = sweep.PredModelSweeper(parameter_transformer)
 
-# Run sweeper experiment.
-start = time.localtime()
-start_readable = time.strftime("%H:%M:%S", start)
-print(f"Start: {start_readable}")
-results_df = sweeper.sweep(parameters)
-end = time.localtime()
-end_readable = time.strftime("%H:%M:%S", end)
-print(f"End: {start_readable}")
+# Print start time:
+start = datetime.now()
+start_str = start.strftime("%Y-%m-%d %H:%M:%S")
+print(f"Start: {start_str}")
 
-diff_readable = time.strftime("%H:%M:%S", end - start)
-print("Time difference: {diff_readable}")
+# Sweep:
+results_df = sweeper.sweep(parameters)
+
+# End time:
+end = datetime.now()
+end_str = end.strftime("%Y-%m-%d %H:%M:%S")
+print(f"End: {end_str}")
+
+# Ellapsed time:
+diff = end - start
+diff_str = diff
+print(f"Time difference: {diff_str}")
 
 # Save results:
 print("Saving...")
 file_path = sweep.save_pandas_to_pickles(df=results_df,
                                          name="first_python_test")
-
+print(f"Saved to: {file_path}")
 print("FINISHED! ")

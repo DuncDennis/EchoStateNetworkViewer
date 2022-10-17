@@ -772,17 +772,15 @@ def time_series_creator(sys_obj: Any,
         PredModelValidator.train_validate_test() and PredModelEnsembler.train_validate_test().
     """
     # Calculate the total number of time steps:
-    total_steps = t_train_disc + n_train_sects * (t_train + t_train_sync) + t_validate_disc + \
-                  t_validate_sync + t_validate
+    total_steps = n_train_sects * (t_train_disc + t_train + t_train_sync) + \
+                  n_validate_sects * (t_validate_disc + t_validate_sync + t_validate)
 
     # If testing is required also add the test steps.
     if t_test_disc is not None and t_test_sync is not None and t_test is not None:
         create_test_data = True
-        total_steps += (t_test_disc + t_test_sync + t_test)*n_test_sects
+        total_steps +=  n_test_sects * (t_test_disc + t_test_sync + t_test)
     else:
         create_test_data = False
-
-    print(total_steps)
 
     # Simulate all the time steps:
     data = sys_obj.simulate(total_steps)
@@ -810,9 +808,6 @@ def time_series_creator(sys_obj: Any,
 
         # Populate the validate_sub_list:
         for i_v in range(n_validate_sects):
-            if i_tr == 1:
-                pass
-                print("Here")
             validate_start_index = train_end_index + \
                                    i_v * (t_validate_disc + t_validate_sync + t_validate) + \
                                    t_validate_disc
