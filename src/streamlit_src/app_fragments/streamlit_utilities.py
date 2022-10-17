@@ -18,7 +18,8 @@ def st_line() -> None:
 
 def st_selectbox_with_all(name: str, options: list[str],
                           default_select_all_bool: bool = False,
-                          key: str | None = None) -> list[str]:
+                          key: str | None = None,
+                          disable_if_only_one_opt: bool = False) -> list[str]:
     """A streamlit element for a multiselect with a "select all" checkbox.
 
     Args:
@@ -26,21 +27,35 @@ def st_selectbox_with_all(name: str, options: list[str],
         options: The options in the multiselect.
         default_select_all_bool: A bool to indicate if select_all should be ticked or not by
                                  default.
+        disable_if_only_one_opt: If true, disable the selectbox if there is only one option anyway.
         key: A optional key if it's used multiple times.
 
     Returns:
         The selection.
     """
     container = st.container()
+    if disable_if_only_one_opt:
+        if len(options) == 1:
+            disabled = True
+        else:
+            disabled = False
+    else:
+        disabled = False
+
     all = st.checkbox("Select all",
                       value=default_select_all_bool,
+                      disabled=disabled,
                       key=f"{key}__select_all")
     if all:
         default = options
     else:
         default = options[0]
 
-    selection = container.multiselect(name, options, default=default, key=f"{key}__multi_select")
+    selection = container.multiselect(name,
+                                      options,
+                                      default=default,
+                                      disabled=disabled,
+                                      key=f"{key}__multi_select")
 
     return selection
 

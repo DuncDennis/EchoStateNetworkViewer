@@ -107,7 +107,9 @@ pred_sync_steps = 100
 
 # TRACKED PARAMETERS:
 parameters={
-    "r_dim": [100, ]
+    "r_dim": [100, 200, 300],
+    "dummy": [1, 2],
+    "dummy2": [1]
 }
 
 # PARAMETER TO ARGUMENT TRANSFOMER FUNCTION:
