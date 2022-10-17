@@ -43,7 +43,7 @@ def scale_and_shift(time_series: np.ndarray, scale: float | np.ndarray | None = 
         else:
             scale_vec = scale
     else:
-        scale_vec = np.zeros(sys_dim)
+        scale_vec = np.ones(sys_dim)
 
     scaled_and_centered = normalized_and_centered * scale_vec
 
