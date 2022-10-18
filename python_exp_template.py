@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 from datetime import datetime
+import pathlib
 
 import src.esn_src.simulations as sims
 import src.esn_src.esn as esn
@@ -15,7 +16,7 @@ import src.ensemble_src.sweep_experiments as sweep
 name_of_file = "test"
 
 # TRACKED PARAMETERS:
-parameters={
+parameters = {
     # Data Meta:
     "system": ["Lorenz63"],
     "dt": 0.05,
@@ -50,7 +51,7 @@ parameters={
 
     # Experiment parameters:
     "seed": [308],
-    "n_ens": 20
+    "n_ens": 1
 }
 
 
@@ -86,8 +87,6 @@ def parameter_transformer(parameters: dict[str, float | int | str]):
     n_ens = p["n_ens"]
     seed = p["seed"]
 
-    ### Output:
-
     # Build model args:
     build_models_args = {"model_class": esn_class,
                          "build_args": build_args,
@@ -105,6 +104,7 @@ def parameter_transformer(parameters: dict[str, float | int | str]):
     }
 
     return build_models_args, train_validate_test_args
+
 
 # Set up Sweeper.
 sweeper = sweep.PredModelSweeper(parameter_transformer)
@@ -129,7 +129,9 @@ print(f"Time difference: {diff_str}")
 
 # Save results:
 print("Saving...")
+directory = pathlib.Path.joinpath(pathlib.Path().absolute(), "sweep_results")
 file_path = sweep.save_pandas_to_pickles(df=results_df,
+                                         directory=directory,
                                          name=name_of_file)
 print(f"Saved to: {file_path}")
 print("FINISHED! ")
