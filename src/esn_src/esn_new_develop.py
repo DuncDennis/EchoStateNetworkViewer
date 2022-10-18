@@ -96,7 +96,7 @@ class ResCompCore(ABC):
         """Abstract method to transform the rfit to the reservoir output y."""
 
     @abstractmethod
-    def y_to_out_fct(self, y: np.ndarray,
+    def y_to_xnext_fct(self, y: np.ndarray,
                         x: np.ndarray | None = None) -> np.ndarray:
         """Abstract method to connect the reservoir output with the required output.
 
@@ -116,7 +116,7 @@ class ResCompCore(ABC):
     # SETTER FUNCTIONS:
 
     @abstractmethod
-    def train_rfit_to_y(self, rfit_array: np.ndarray, y_train: np.ndarray) -> np.ndarray:
+    def set_rfit_to_y_fct(self, rfit_array: np.ndarray, y_train: np.ndarray) -> np.ndarray:
         """To be used in train.
 
         Args:
@@ -128,13 +128,20 @@ class ResCompCore(ABC):
         """
 
     @abstractmethod
-    def rgen_process(self, rgen_array: np.ndarray) -> np.ndarray:
-        """Process rgen_array, define rgen_to_rproc_fct and return rproc_array."""
+    def set_input_to_res_fct(self, train: np.ndarray):
+        """Set the input_to_res_fct.
+        May use train data for preprocessing.
+        """
+
+    @abstractmethod
+    def set_y_to_xnext_fct(self, train: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Set the y to xnext function using the train data."""
 
 
     @abstractmethod
-    def train(self):
-        """TBD"""
+    def set_rgen_to_rproc_fct(self, rgen_array: np.ndarray) -> np.ndarray:
+        """Process rgen_array, define rgen_to_rproc_fct and return rproc_array."""
+
 
     # INTERNAL UPDATE FUNCTIONS:
 
@@ -203,10 +210,76 @@ class ResCompCore(ABC):
 
         # Res output to output:
 
-
         return y_train_fit, y_train
 
+    def train(self, use_for_train: np.ndarray, sync_steps: int = 0):
+        """Synchronize and train the reservoir.
 
+        Args:
+            use_for_train:
+            sync_steps:
+
+        Returns:
+
+        """
+
+        # Split sync and train steps:
+        sync = use_for_train[:sync_steps]
+        train = use_for_train[sync_steps:]
+
+        # Set the input to reservoir function. (Now one can drive the reservoir).
+        self.set_input_to_res_fct(train)
+
+        # Split train into x_train (input to reservoir) and y_train (output of reservoir).
+        x_train, y_train = self.set_y_to_xnext_fct(train)
+
+        # Add input noise:
+        # TBD: MODIFY only x_train.
+
+        # reset reservoir state.
+
+        # Synchronize reservoir:
+        self.drive(sync)
+
+        # Train synchronized:
+        self.train_synced(x_train, y_train)
+
+        # Y to rnext:
+
+        # Output rnext and r.
+
+    def loop(self, steps: int):
+        """"""
+
+        # Create first prediction from last saved reservoir state (produced during drive).
+        self._last_rgen = self.r_to_rgen_fct(self._last_r)
+        self._last_rproc = self.rgen_to_rproc_fct(self._last_rgen)
+        self._last_rfit = self.rproc_to_rfit_fct(self._last_rproc, self._last_x)
+        self._last_y = self.rfit_to_y_fct(self._last_rfit)
+        self._last_x = self.y_to_xnext_fct(self._last_y, self._last_x)
+
+        # Loop for (steps - 1) steps:
+        for i in range(1, steps):  # One step less:
+            self._res_update(self._last_x)
+            self._last_rproc = self.rgen_to_rproc_fct(self._last_rgen)
+            self._last_rfit = self.rproc_to_rfit_fct(self._last_rproc, self._last_x)
+            self._last_y = self.rfit_to_y_fct(self._last_rfit)
+            self._last_x = self.y_to_xnext_fct(self._last_y, self._last_x)
+
+
+    def predict(self, use_for_pred: np.ndarray, sync_steps: int = 0):
+        # Reset reservoir state
+
+        # Synchronize the reservoir:
+        if sync_steps > 0:
+            sync = use_for_pred[:sync_steps]
+            true_data = use_for_pred[sync_steps:]
+            self.drive(sync)
+        else:
+            true_data = use_for_pred
+
+        steps = true_data.shape[0]
+        return self.loop(steps), true_data
 
 
     def _r_gen_to_out_fct(self, r_gen: np.ndarray) -> np.ndarray:
