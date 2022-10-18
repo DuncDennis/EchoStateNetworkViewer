@@ -6,6 +6,8 @@ from __future__ import annotations
 import numpy as np
 from abc import ABC, abstractmethod
 
+import src.esn_src.utilities as utilities
+
 class ResCompCore(ABC):
     """
     Reservoir Computing base class with the following data flow:
@@ -109,7 +111,6 @@ class ResCompCore(ABC):
         """
 
     # SETTER FUNCTIONS for functions that have to be set during training.
-
     @abstractmethod
     def set_rfit_to_y_fct(self, rfit_array: np.ndarray, y_train: np.ndarray) -> np.ndarray:
         """Is essentially the training. -> sets self.r_fit_to_y_fct.
@@ -126,12 +127,6 @@ class ResCompCore(ABC):
     def set_x_to_xproc_fct(self, train: np.ndarray):
         """Set the input preprocess function."""
 
-    # @abstractmethod
-    # def set_input_to_res_fct(self, train: np.ndarray):
-    #     """Set the input_to_res_fct.
-    #     May use train data for preprocessing.
-    #     """
-
     @abstractmethod
     def set_y_to_xnext_fct(self, train: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Set the y to xnext function using the train data.
@@ -144,40 +139,7 @@ class ResCompCore(ABC):
         Preprocessing of rgen_array: normally identity.
         """
 
-    @abstractmethod
-    def add_noise_to_x_train(self, x_train: np.ndarray) -> np.ndarray:
-        """Add noise to x_train before training.
-        # TODO: check if necessary.
-        """
-
-    def set_default_r(self, default_r: np.ndarray) -> None:
-        """Set the default reservoir state used to initialize."""
-        self._default_r = default_r
-
-    def reset_reservoir(self) -> None:
-        """Reset the reservoir state."""
-        self._last_r = self._default_r
-
-    def set_node_bias(self, ) -> None:
-        self.node_bias = np.ones(self.r_dim)
-
-    def set_leak_factor(self, leak_factor: float = 0.0) -> None:
-        self.leak_factor = leak_factor
-
-    def build(self):
-        self.x_dim = 3
-        self.xproc_dim = 3
-        self.r_dim = 100
-        self.rgen_dim = 100
-        self.rproc_dim = 100
-        self.rfit_dim = 100
-        self.y_dim = 3
-
-        self.set_default_r(np.zeros(self.r_dim))
-        self.set_node_bias()
-        self.set_leak_factor()
-
-    # INTERNAL UPDATE FUNCTIONS:
+    # UPDATE FUNCTIONS:
     def res_update_step(self, x: np.ndarray):
         """Update the reservoir state from r_i to r_(i+1), save the resulting reservoir state.
 
@@ -288,19 +250,22 @@ class ResCompCore(ABC):
         r_array = self.drive(x_train)
 
         # From r_array get rgen_array:
-        rgen_array = self.r_to_rgen_fct(r_array)
+        # rgen_array = self.r_to_rgen_fct(r_array)
+        rgen_array = utilities.vectorize(self.r_to_rgen_fct, (r_array, ))
 
         # From rgen_array get rproc_array:
         rproc_array = self.set_rgen_to_rproc_fct(rgen_array=rgen_array)
 
         # from rproc_array get rfit_array.
-        rfit_array = self.rproc_to_rfit_fct(rproc_array, x_train)
+        # rfit_array = self.rproc_to_rfit_fct(rproc_array, x_train)
+        rfit_array = utilities.vectorize(self.rproc_to_rfit_fct, (rproc_array, x_train))
 
         # Perform the fitting:
         y_train_fit = self.set_rfit_to_y_fct(rfit_array=rfit_array, y_train=y_train)
 
         # Get real output from reservoir output:
-        xnext_train_fit = self.y_to_xnext_fct(y_train_fit)
+        # xnext_train_fit = self.y_to_xnext_fct(y_train_fit)
+        xnext_train_fit = utilities.vectorize(self.y_to_xnext_fct, (y_train_fit, ))
 
         return xnext_train_fit, x_train
 
@@ -356,6 +321,41 @@ class ResCompCore(ABC):
 
         return pred_data, true_data
 
+    # BUILD FUNCTIONS:
+    def set_default_r(self, default_r: np.ndarray) -> None:
+        """Set the default reservoir state used to initialize."""
+        self._default_r = default_r
+
+    def reset_reservoir(self) -> None:
+        """Reset the reservoir state."""
+        self._last_r = self._default_r
+
+    def set_node_bias(self, ) -> None:
+        """Set the node bias. """
+        self.node_bias = np.ones(self.r_dim)
+
+    def set_leak_factor(self, leak_factor: float = 0.0) -> None:
+        """Set the leak factor. """
+        self.leak_factor = leak_factor
+
+    def add_noise_to_x_train(self, x_train: np.ndarray) -> np.ndarray:
+        """Add noise to x_train before training.
+        """
+        return x_train
+
+    def build(self):
+        """Build the basic quantities of the reservoir object. """
+        self.x_dim = 3
+        self.xproc_dim = 3
+        self.r_dim = 100
+        self.rgen_dim = 100
+        self.rproc_dim = 100
+        self.rfit_dim = 100
+        self.y_dim = 3
+
+        self.set_default_r(np.zeros(self.r_dim))
+        self.set_node_bias()
+        self.set_leak_factor()
 
 class TestMixin:
     def __init__(self):
@@ -410,9 +410,6 @@ class TestMixin:
 
     def set_rgen_to_rproc_fct(self, rgen_array: np.ndarray) -> np.ndarray:
         return rgen_array
-
-    def add_noise_to_x_train(self, x_train: np.ndarray) -> np.ndarray:
-        return x_train
 
     def build(self) -> None:
         self.w_in = np.random.randn(self.r_dim, self.xproc_dim)

@@ -1,5 +1,7 @@
 """Utility functions."""
 
+from typing import Callable
+
 import contextlib #  for temp_seed
 import inspect
 
@@ -138,6 +140,30 @@ def remove_invalid_args(func, args_dict):
     valid_args = inspect.signature(func).parameters
     # valid_args = func.func_code.co_varnames[:func.func_code.co_argcount]
     return dict((key, value) for key, value in args_dict.items() if key in valid_args)
+
+
+def vectorize(func: Callable[[np.ndarray], np.ndarray],
+              args_two_dim: tuple[np.ndarray, ...]) -> np.ndarray:
+    """Vectorize a function func that takes a 1d-array as input to 2d arrays.
+
+    Args:
+        func: The function that works like: func(args[0][i, :], args[1][i, :], ...) -> out
+              where args[j] has the shape (time steps, inp_dim), and out has the shape (out_dim).
+        args: a tuple of 2d arrays.
+    Returns:
+        The vectorized result of shape (time steps, outdim).
+    """
+
+    steps = args_two_dim[0].shape[0]
+    results = None
+    for i in range(steps):
+        args_one_dim = [args[i, :] for args in args_two_dim]
+        out = func(*args_one_dim)
+        if results is None:
+            results = np.zeros((steps, out.size))
+        results[i, :] = out
+
+    return results
 
 
 def sigmoid(x):
