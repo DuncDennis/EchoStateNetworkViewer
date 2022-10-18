@@ -23,38 +23,42 @@ class ResCompCore(ABC):
     """
     Reservoir Computing base class with the following data flow:
 
-    x_i --[input_to_res_fct]--> r_i --[r_to_rgen_fct]--> rgen_i --[rgen_to_rproc_fct]--> rproc_i
-    --[rproc_to_rfit_fct]--> rfit_i --[rfit_to_y_fct]--> y_i --[y_to_xnext]--> x_{i+1}
+    x_i --[x_to_xproc_fct]--> xproc_i --[xproc_to_res_fct]--> r_i --[r_to_rgen_fct]--> rgen_i
+    --[rgen_to_rproc_fct]--> rproc_i --[rproc_to_rfit_fct]--> rfit_i --[rfit_to_y_fct]--> y_i
+    --[y_to_xnext]--> x_{i+1}.
     """
 
     def __init__(self):
 
         # DIMENSIONS:
         self.r_dim: int | None = None  # reservoir dimension.
-        self.r_gen_dim: int | None = None  # generalized reservoir state dimension.
-        self.r_process_dim: int | None = None  # processed reservoir state dimensions.
-        self.r_fit_dim: int | None = None   # final to-fit reservoir state dimension.
+        self.rgen_dim: int | None = None  # generalized reservoir state dimension.
+        self.rproc_dim: int | None = None  # processed reservoir state dimensions.
+        self.rfit_dim: int | None = None   # final to-fit reservoir state dimension.
         self.x_dim: int | None = None  # Input data dimension.
+        self.xproc_dim: int | None = None # Preprocessed input data dimension.
         self.y_dim: int | None = None  # Output data dimension.
 
         # FIXED PARAMETERS:
         self.leak_factor: float | None = None  # leak factor lf (0=<lf=<1) in res update equation.
         self.node_bias: np.ndarray | None = None  # Node bias in res update equation.
-        self.reg_param: float | None = None  # Regularization param for Ridge regression.
 
         # OTHER SETTINGS:
         self._default_r: np.ndarray | None = None  # The default starting reservoir state.
 
         # DYNAMIC INTERNAL QUANTITIES:
-        # TODO: Add more quantities.
         self._last_x: np.ndarray | None = None
-        self._last_res_inp: np.ndarray | None = None
-        self._last_r_internal: np.ndarray | None = None
+        self._last_xproc: np.ndarray | None = None
+        self._last_rinp: np.ndarray | None = None
+        self._last_rinternal: np.ndarray | None = None
         self._last_r: np.ndarray | None = None
-        self._last_r_gen: np.ndarray | None = None
+        self._last_rgen: np.ndarray | None = None
+        self._last_rproc: np.ndarray | None = None
+        self._last_rfit: np.ndarray | None = None
         self._last_y: np.ndarray | None = None
 
         # SAVED INTERNAL QUANTITIES:
+        # TODO: Check how to handle.
         self._saved_res_inp = None
         self._saved_r_internal = None
         self._saved_r = None
@@ -69,8 +73,12 @@ class ResCompCore(ABC):
         """Abstract method for the element wise activation function"""
 
     @abstractmethod
-    def input_to_res_fct(self, x: np.ndarray) -> np.ndarray:
-        """Abstract method to connect the input with the reservoir."""
+    def x_to_xproc_fct(self, x: np.ndarray) -> np.ndarray:
+        """Abstract method to connect the raw input with the processed input."""
+
+    @abstractmethod
+    def xproc_to_res_fct(self, xproc: np.ndarray) -> np.ndarray:
+        """Abstract method to connect the processed input with the reservoir."""
 
     @abstractmethod
     def internal_res_fct(self, r: np.ndarray) -> np.ndarray:
@@ -97,7 +105,7 @@ class ResCompCore(ABC):
 
     @abstractmethod
     def y_to_xnext_fct(self, y: np.ndarray,
-                        x: np.ndarray | None = None) -> np.ndarray:
+                       x: np.ndarray | None = None) -> np.ndarray:
         """Abstract method to connect the reservoir output with the required output.
 
         Usually the required output is the x(t+1), and normally y(t) = x(t+1),
@@ -113,11 +121,11 @@ class ResCompCore(ABC):
             The output x(t+1) of shape (self._x_dim, ).
         """
 
-    # SETTER FUNCTIONS:
+    # SETTER FUNCTIONS for functions that have to be set during training.
 
     @abstractmethod
     def set_rfit_to_y_fct(self, rfit_array: np.ndarray, y_train: np.ndarray) -> np.ndarray:
-        """To be used in train.
+        """Is essentially the training. -> sets self.r_fit_to_y_fct.
 
         Args:
             rfit_array: Array to be fitted to y_train. Has shape (train_steps, self.rfit_dim).
@@ -128,24 +136,44 @@ class ResCompCore(ABC):
         """
 
     @abstractmethod
-    def set_input_to_res_fct(self, train: np.ndarray):
-        """Set the input_to_res_fct.
-        May use train data for preprocessing.
-        """
+    def set_x_to_xproc_fct(self, train: np.ndarray):
+        """Set the input preprocess function."""
+
+    # @abstractmethod
+    # def set_input_to_res_fct(self, train: np.ndarray):
+    #     """Set the input_to_res_fct.
+    #     May use train data for preprocessing.
+    #     """
 
     @abstractmethod
     def set_y_to_xnext_fct(self, train: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Set the y to xnext function using the train data."""
-
+        """Set the y to xnext function using the train data.
+        return x_train and y_train.
+        """
 
     @abstractmethod
     def set_rgen_to_rproc_fct(self, rgen_array: np.ndarray) -> np.ndarray:
-        """Process rgen_array, define rgen_to_rproc_fct and return rproc_array."""
+        """Process rgen_array, define rgen_to_rproc_fct and return rproc_array.
+        Preprocessing of rgen_array: normally identity.
+        """
+
+    @abstractmethod
+    def add_noise_to_x_train(self, x_train: np.ndarray):
+        """Add noise to x_train before training.
+        # TODO: check if necessary.
+        """
+
+    def set_default_r(self, default_r: np.ndarray) -> None:
+        """Set the default reservoir state used to initialize."""
+        self._default_r = default_r
+
+    def reset_reservoir(self) -> None:
+        """Reset the reservoir state."""
+        self._last_r = self._default_r
 
 
     # INTERNAL UPDATE FUNCTIONS:
-
-    def _res_update(self, x: np.ndarray) -> None:
+    def res_update_step(self, x: np.ndarray):
         """Update the reservoir state from r_i to r_(i+1), save the resulting reservoir state.
 
         Updates self._last_r. Assumes self._last_r is not None.
@@ -154,30 +182,122 @@ class ResCompCore(ABC):
             x: The input of shape (sys_dim, ).
         """
 
-        # Update the current input
+        # Save driving input:
         self._last_x = x
 
+        # Preprocess the input.
+        self._last_xproc = self.x_to_xproc_fct(self._last_x)
+
         # Create the reservoir-input-term.
-        self._last_res_inp = self.input_to_res_fct(self._last_x)
+        self._last_rinp = self.xproc_to_res_fct(self._last_xproc)
 
         # Create the reservoir-reservoir-term.
-        self._last_r_internal = self.internal_res_fct(self._last_r)
+        self._last_rinternal = self.internal_res_fct(self._last_r)
 
         # Update the reservoir state:
         self._last_r = self.leak_factor * self._last_r + (1 - self.leak_factor) * \
-                       self.activation_fct(self._last_res_inp +
-                                           self._last_r_internal +
+                       self.activation_fct(self._last_rinp +
+                                           self._last_rinternal +
                                            self.node_bias)
 
-    def drive(self, input: np.ndarray):
-        """Drive the reservoir using the input.
-        # TODO: save data.
+        # Return next reservoir state:
+        return self._last_r
+
+    def res_to_output_step(self):
+        """Create output given self._last_r (and self._last_x).
+
+        Returns:
+            The output corresponding to self._last_r of shape (self.x_dim, ).
+        """
+        # last reservoir to generalized reservoir state:
+        self._last_rgen = self.r_to_rgen_fct(self._last_r)
+
+        # last generalized reservoir state to processed reservoir state:
+        self._last_rproc = self.rgen_to_rproc_fct(self._last_rgen)
+
+        # last processed reservoir state to fitting-reservoir state:
+        self._last_rfit = self.rproc_to_rfit_fct(self._last_rproc, self._last_x)
+
+        # last fitting-reservoir state to reservoir output y:
+        self._last_y = self.rfit_to_y_fct(self._last_rfit)
+
+        # last reservoir output to real output = next step in time series:
+        self._last_x = self.y_to_xnext_fct(self._last_y, self._last_x)
+
+        # Return final output, i.e. the next step in time series:
+        return self._last_x
+
+    def drive(self, x_array: np.ndarray) -> np.ndarray:
+        """Drive the reservoir using the input x_array.
+
         Args:
-            input: The input time series of shape (time_steps, self.x_dim).
+            x_array: The input time series of shape (time_steps, self.x_dim).
+
+        Returns:
+            The saved reservoir states.
         """
 
-        for i_x, x in enumerate(input):
-            self._res_update(x)
+        drive_steps = x_array.shape[0]
+
+        r_array = np.zeros((drive_steps, self.r_dim))
+
+        for i in range(drive_steps):
+            x = x_array[i, :]
+            r_array[i, :] = self.res_update_step(x)
+
+        return r_array
+
+    def train(self, use_for_train: np.ndarray, sync_steps: int = 0):
+        """Synchronize and train the reservoir.
+
+        Args:
+            use_for_train: The data used for training of the shape
+                           (sync_steps + train_steps, self.x_dim).
+            sync_steps: The number of steps to synchronize the reservoir.
+
+        Returns:
+            x_train_fit and x_train.
+        """
+
+        # Split sync and train steps:
+        sync = use_for_train[:sync_steps]
+        train = use_for_train[sync_steps:]
+
+        # Set the input preprocess function (which depends on train).
+        self.set_x_to_xproc_fct(train)
+
+        # Split train into x_train (input to reservoir) and y_train (output of reservoir).
+        x_train, y_train = self.set_y_to_xnext_fct(train)
+
+        # Add input noise:
+        x_train = self.add_noise_to_x_train(x_train)
+
+        # reset reservoir state.
+        self.reset_reservoir()
+
+        # Synchronize reservoir:
+        self.drive(sync)  # sets the reservoir state self._last_r to be synced to the input.
+
+        # Train synchronized ...
+        # Drive reservoir to get r states:
+        r_array = self.drive(x_train)
+
+        # From r_array get rgen_array:
+        rgen_array = self.r_to_rgen_fct(r_array)
+
+        # From rgen_array get rproc_array:
+        rproc_array = self.set_rgen_to_rproc_fct(rgen_array=rgen_array)
+
+        # from rproc_array get rfit_array.
+        rfit_array = self.rproc_to_rfit_fct(rproc_array, x_train)
+
+        # Perform the fitting:
+        y_train_fit = self.set_rfit_to_y_fct(rfit_array=rfit_array, y_train=y_train)
+
+        # Get real output from reservoir output:
+        xnext_train_fit = self.y_to_xnext_fct(y_train_fit)
+
+        return xnext_train_fit, x_train
 
     def train_synced(self,
                      x_train: np.ndarray,
@@ -200,53 +320,19 @@ class ResCompCore(ABC):
         rgen_array = self.r_to_rgen_fct(r_array)  # vectorized
 
         # From rgen_array get rproc_array.
-        rproc_array = self.rgen_process(rgen_array=rgen_array)
+        rproc_array = self.set_rgen_to_rproc_fct(rgen_array=rgen_array)
 
         # from rproc_array get rfit_array.
         rfit_array = self.rproc_to_rfit_fct(rproc_array, x_train)  # vectorized
 
         # Train the output layer, return the fitted y_train_fit.
-        y_train_fit = self.train_rfit_to_y(rfit_array=rfit_array, y_train=y_train)
+        y_train_fit = self.set_rfit_to_y_fct(rfit_array=rfit_array, y_train=y_train)
 
         # Res output to output:
 
         return y_train_fit, y_train
 
-    def train(self, use_for_train: np.ndarray, sync_steps: int = 0):
-        """Synchronize and train the reservoir.
 
-        Args:
-            use_for_train:
-            sync_steps:
-
-        Returns:
-
-        """
-
-        # Split sync and train steps:
-        sync = use_for_train[:sync_steps]
-        train = use_for_train[sync_steps:]
-
-        # Set the input to reservoir function. (Now one can drive the reservoir).
-        self.set_input_to_res_fct(train)
-
-        # Split train into x_train (input to reservoir) and y_train (output of reservoir).
-        x_train, y_train = self.set_y_to_xnext_fct(train)
-
-        # Add input noise:
-        # TBD: MODIFY only x_train.
-
-        # reset reservoir state.
-
-        # Synchronize reservoir:
-        self.drive(sync)
-
-        # Train synchronized:
-        self.train_synced(x_train, y_train)
-
-        # Y to rnext:
-
-        # Output rnext and r.
 
     def loop(self, steps: int):
         """"""
