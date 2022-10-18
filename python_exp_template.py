@@ -1,7 +1,7 @@
 """A test experiment template to show how to start an ensemble experiment.
 
 # Some notes about the experiment:
-
+18.10.2022: This is just the template.
 """
 
 from __future__ import annotations
@@ -11,6 +11,8 @@ import src.esn_src.simulations as sims
 import src.esn_src.esn as esn
 import src.esn_src.utilities as utilities
 import src.ensemble_src.sweep_experiments as sweep
+
+name_of_file = "test"
 
 # TRACKED PARAMETERS:
 parameters={
@@ -35,20 +37,20 @@ parameters={
 
     # ESN Build (data that is fed into esn.build(ARGS):
     "r_dim": [300],
-    "n_rad": [0.1],
+    "n_rad": [0.6],
     "n_avg_deg": [6.0],
     "n_type_opt": ["erdos_renyi"],
     "r_to_r_gen_opt": ["output_bias"],
     "act_fct_opt": ["tanh"],
     "node_bias_opt": ["random_bias"],
-    "bias_scale": [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6],
+    "bias_scale": [1.0],
     "w_in_opt": ["random_sparse"],
     "w_in_scale": [1.0],
     "input_noise_scale": [0.0],
 
     # Experiment parameters:
     "seed": [308],
-    "n_ens": 10
+    "n_ens": 20
 }
 
 
@@ -128,6 +130,6 @@ print(f"Time difference: {diff_str}")
 # Save results:
 print("Saving...")
 file_path = sweep.save_pandas_to_pickles(df=results_df,
-                                         name="first_python_test")
+                                         name=name_of_file)
 print(f"Saved to: {file_path}")
 print("FINISHED! ")
