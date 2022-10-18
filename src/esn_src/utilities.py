@@ -174,3 +174,15 @@ def sigmoid(x):
 def relu(x):
     """The relu activation function."""
     return x * (x > 0)
+
+
+def add_one(x):
+    """Add a new dimension with value one to vector.
+
+    Args:
+        x: input vector of size (x_dim, ).
+
+    Returns:
+        output vector of size (x_dim+1, ).
+    """
+    return np.hstack((x, 1))
