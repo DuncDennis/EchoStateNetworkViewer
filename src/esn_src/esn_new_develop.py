@@ -154,7 +154,10 @@ class ResCompCore(ABC):
         Preprocessing of rgen_array: normally identity.
         """
 
-    # SETTER FUNCTIONS CALLED in Mixins build:
+    @abstractmethod
+    def set_rproc_to_rfit_fct(self, rproc_array: np.ndarray, x_train: np.ndarray) -> np.ndarray:
+        """Abstract method to set the rproc_to_rfit_fct.
+        Called during training"""
 
     # UPDATE FUNCTIONS:
     def res_update_step(self, x: np.ndarray):
@@ -254,7 +257,7 @@ class ResCompCore(ABC):
         x_train, y_train = self.set_y_to_xnext_fct(train)
 
         # Add input noise:
-        x_train = self.add_noise_to_x_train(x_train)
+        x_train_w_noise = self.add_noise_to_x_train(x_train)
 
         # reset reservoir state.
         self.reset_reservoir()
@@ -264,7 +267,7 @@ class ResCompCore(ABC):
 
         # Train synchronized ...
         # Drive reservoir to get r states:
-        r_array = self.drive(x_train)
+        r_array = self.drive(x_train_w_noise)
 
         # From r_array get rgen_array:
         # rgen_array = self.r_to_rgen_fct(r_array)
@@ -274,8 +277,8 @@ class ResCompCore(ABC):
         rproc_array = self.set_rgen_to_rproc_fct(rgen_array=rgen_array)
 
         # from rproc_array get rfit_array.
-        # rfit_array = self.rproc_to_rfit_fct(rproc_array, x_train)
-        rfit_array = utilities.vectorize(self.rproc_to_rfit_fct, (rproc_array, x_train))
+        # rfit_array = utilities.vectorize(self.rproc_to_rfit_fct, (rproc_array, x_train))
+        rfit_array = self.set_rproc_to_rfit_fct(rproc_array=rproc_array, x_train=x_train)
 
         # Perform the fitting:
         y_train_fit = self.set_rfit_to_y_fct(rfit_array=rfit_array, y_train=y_train)
@@ -760,6 +763,10 @@ class NoRprocToRfitMixin:
         """No modification of rproc"""
         return rproc
 
+    def set_rproc_to_rfit_fct(self, rproc_array: np.ndarray, x_train: np.ndarray) -> np.ndarray:
+        """No modification of rproc"""
+        return rproc_array
+
 class NoXToXProcMixin:
     """Simple x_to_xproc_fct: No processing of the input. """
     def __init__(self):
@@ -944,8 +951,17 @@ class HybridMixin:
 
     def __init__(self):
         # Hybrid Model:
+        # input
         self.input_model: Callable[[np.ndarray], np.ndarray] | None = None
+        self._scale_input_model_bool: bool | None = None
+        self.standard_scaler_input_model: None | StandardScaler = None
+
+        # output
         self.output_model: Callable[[np.ndarray], np.ndarray] | None = None
+        self._scale_output_model_bool: Callable[[np.ndarray], np.ndarray] | None = None
+        self.standard_scaler_output_model: None | StandardScaler = None
+
+        # both
         self._out_model_is_inp_bool: bool | None = None
         self._last_input_model_result: np.ndarray | None = None
 
@@ -954,9 +970,8 @@ class HybridMixin:
         self.standard_scaler: None | StandardScaler = None
         self._x_to_xproc_fct: Callable[[np.ndarray], np.ndarray] | None = None
 
-        # Scaler YtoXnextMixin
-        self._scale_output_bool: bool | None = None
-        self._y_to_xnext_fct: Callable[[np.ndarray], np.ndarray] | None = None
+        # Rproc to Rfit:
+        self._rproc_to_rfit_fct: Callable[[np.ndarray], np.ndarray] | None = None
 
 
     def x_to_xproc_fct(self, x: np.ndarray) -> np.ndarray:
@@ -972,34 +987,37 @@ class HybridMixin:
                 self._last_input_model_result = self.input_model(x)
                 return self._last_input_model_result
 
+            if self._scale_input_model_bool:
+                # create the input model scaler, i.e. scale the results from the input_model.
+                self.standard_scaler_input_model = StandardScaler()
+                input_model_array = utilities.vectorize(self.input_model, (train, ))
+                self.standard_scaler_input_model.fit(input_model_array)
+                _inp_model_scaler = \
+                    lambda x: self.standard_scaler_input_model.transform(x[np.newaxis, :])[0, :]
+            else: # no input model scaling:
+                _inp_model_scaler = lambda x: x
+
         if self._scale_input_bool:
             self.standard_scaler = StandardScaler()
             self.standard_scaler.fit(train)
 
             _inp_scaler = \
                 lambda x: self.standard_scaler.transform(x[np.newaxis, :])[0, :]
+        else:  # no input scaling:
+            _inp_scaler = lambda x: x
 
-            if self.input_model is not None: # If input scaler and input model.
-                self._x_to_xproc_fct = \
-                    lambda x: np.hstack((_inp_scaler(x), _inp_scaler(input_model(x))))
 
-            else: # If only input scaler.
-                self._x_to_xproc_fct = \
-                    lambda x: _inp_scaler(x)
+        if self.input_model is not None:
+            self._x_to_xproc_fct = \
+                lambda x: np.hstack((_inp_scaler(x), _inp_model_scaler(input_model(x))))
 
         else:
-            if self.input_model is not None: # If only input model.
-                self._x_to_xproc_fct = \
-                    lambda x: np.hstack((x, input_model(x)))
-            else: # If no input model and no scaler.
-                self._x_to_xproc_fct = lambda x: x
+            self._x_to_xproc_fct = lambda x: _inp_scaler(x)
 
     def rproc_to_rfit_fct(self,
                           rproc: np.ndarray,
                           x: np.ndarray | None = None) -> np.ndarray:
         """Output model:
-        # TODO: add output scaler to model.
-        # TODO: Check if model already calcualted.
         """
         if self.output_model is None:
             return rproc
@@ -1010,52 +1028,42 @@ class HybridMixin:
             else:
                 model_result = self.output_model(x)
 
+            if self._scale_output_model_bool:
+                model_result = \
+                    self.standard_scaler_output_model.transform(model_result[np.newaxis, :])[0, :]
+
         return np.hstack((rproc, model_result))
 
-    # def y_to_xnext_fct(self,
-    #                    y: np.ndarray,
-    #                    x: np.ndarray | None = None) -> np.ndarray:
-    #     """Either identity or scaler. """
-    #     return self._y_to_xnext_fct(y, x)
-    #
-    # def set_y_to_xnext_fct(self, train: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    #     """Either add the output standard scaler or not.
-    #     # TODO: this is probably not even needed here.
-    #     """
-    #
-    #     x_train = train[: -1, :]
-    #     y_train = train[1:, :]
-    #
-    #     if self._scale_output_bool:
-    #         # Check if there is already a standard scaler defined from XToXProcMixin.
-    #
-    #         if self.standard_scaler is None:
-    #             self.standard_scaler = StandardScaler()
-    #             self.standard_scaler.fit(train)
-    #
-    #         # Transform the output to be fitted:
-    #         y_train = self.standard_scaler.transform(y_train)
-    #
-    #         # Define the y_to_xnext_fct:
-    #         self._y_to_xnext_fct = lambda y, x: \
-    #             self.standard_scaler.inverse_transform(y[np.newaxis, :])[0, :]
-    #     else:
-    #         # Or just the identity:
-    #         self._y_to_xnext_fct = lambda y, x: y
-    #
-    #     return x_train, y_train
+    def set_rproc_to_rfit_fct(self,
+                              rproc_array: np.ndarray,
+                              x_train: np.ndarray) -> np.ndarray:
+        """Set rproc_to_rfit fct. """
+        if self.output_model is not None:
+            output_model_array = utilities.vectorize(self.output_model, (x_train,))
+            if self._scale_output_model_bool:
+                self.standard_scaler_output_model = StandardScaler()
+                # Set the scaler and scale the output_model_array
+                output_model_array = \
+                    self.standard_scaler_output_model.fit_transform(output_model_array)
+
+            return np.concatenate((rproc_array, output_model_array), axis=1)
+
+        else:
+            return rproc_array
 
     def subbuild(self,
                  scale_input_bool: bool = False,
-                 # scale_output_bool: bool = False,
+                 scale_input_model_bool: bool = False,
                  input_model: Callable[[np.ndarray], np.ndarray] | None = None,
+                 scale_output_model_bool: bool = False,
                  output_model: Callable[[np.ndarray], np.ndarray] | None = None,
                  out_model_is_inp_bool: bool = False,
                  ):
 
         """Hybrid ESN sub-build. """
         self._scale_input_bool = scale_input_bool
-        # self._scale_output_bool = scale_output_bool
+        self._scale_input_model_bool = scale_input_model_bool
+        self._scale_output_model_bool = scale_output_model_bool
 
         self._out_model_is_inp_bool = out_model_is_inp_bool
 
@@ -1071,7 +1079,7 @@ class HybridMixin:
             self.xproc_dim = self.x_dim + self.input_model(np.ones(self.x_dim)).size
 
 
-class ESN(
+class ESNSimple(
     ActFunctionMixin,
     NetworkMixin,
     OutputFitMixin,
@@ -1183,12 +1191,7 @@ class ESN(
 
 
 
-        # SimpleYtoXnextMixin.subbuild(self) # after xproc dim.
-        # SimpleRgenToRprocMixin no subbuild needed.
-        # SimpleRprocToRfitMixin no subbuild needed.
-
-
-class ESN2(
+class ESN(
     ActFunctionMixin,
     NetworkMixin,
     OutputFitMixin,
@@ -1302,6 +1305,150 @@ class ESN2(
         ScalerXToXProcMixin.subbuild(
             self,
             scale_input_bool=scale_input_bool)
+
+        # Input Matrix build:
+        InputMatrixMixin.subbuild(
+            self,
+            w_in_opt=w_in_opt,
+            w_in_scale=w_in_scale,
+            w_in_seed=w_in_seed
+            )
+
+        RgenToRprocMixin.subbuild(
+            self,
+            scale_rgen_bool=scale_rgen_bool,
+            perform_pca_bool=perform_pca_bool,
+            pca_components=pca_components,
+        )
+
+        # Y to Xnext:
+        ScalerYToXnextMixin.subbuild(
+            self,
+            scale_output_bool=scale_output_bool)
+
+
+class ESNHybrid(
+    ActFunctionMixin,
+    NetworkMixin,
+    OutputFitMixin,
+    RToRgenMixin,
+    RgenToRprocMixin,
+    HybridMixin,
+    InputMatrixMixin,
+    ScalerYToXnextMixin,
+    ResCompCore):
+
+    def __init__(self):
+        ResCompCore.__init__(self)
+        ActFunctionMixin.__init__(self)
+        NetworkMixin.__init__(self)
+        OutputFitMixin.__init__(self)
+        RgenToRprocMixin.__init__(self)
+        HybridMixin.__init__(self)
+        InputMatrixMixin.__init__(self)
+        ScalerYToXnextMixin.__init__(self)
+        RToRgenMixin.__init__(self)
+
+    def build(self,
+
+              # BASIC:
+              x_dim: int,
+              r_dim: int = 500,
+              leak_factor: int = 0.0,
+              node_bias_opt: str = "random_bias",
+              node_bias_seed: int | None = None,
+              node_bias_scale: float = 0.1,
+              default_r: np.ndarray | None = None,
+              x_train_noise_scale: float | None = None,
+              x_train_noise_seed: int | None = None,
+
+              #ACT FCT:
+              act_fct_opt: str = "tanh",
+
+              # Reservoir Network:
+              n_type_opt: str = "erdos_renyi",
+              n_rad: float = 0.1,
+              n_avg_deg: float = 6.0,
+              network_creation_attempts: int = 10,
+              network_creation_seed: int | None = None,
+
+              # R to Rgen:
+              r_to_rgen_opt: str = "linear_r",
+
+              # Output fit / Training:
+              reg_param: float = 1e-8,
+              ridge_regression_opt: str = "no_bias",
+
+              # Hybrid RC:
+              scale_input_bool: bool = False,
+              scale_input_model_bool: bool = False,
+              input_model: Callable[[np.ndarray], np.ndarray] | None = None,
+              scale_output_model_bool: bool = False,
+              output_model: Callable[[np.ndarray], np.ndarray] | None = None,
+              out_model_is_inp_bool: bool = False,
+
+              # Input Matrix:
+              w_in_opt: str = "random_sparse",
+              w_in_scale: float = 1.0,
+              w_in_seed: int | None = None,
+
+              # Rgen to Rproc:
+              scale_rgen_bool: bool = False,
+              perform_pca_bool: bool = False,
+              pca_components: int | None = None,
+
+              # Y to Xnext Standard Scaler:
+              scale_output_bool: bool = False,
+              ):
+
+        # Basic Rescomp build:
+        ResCompCore.subbuild(
+            self,
+            x_dim=x_dim,
+            r_dim=r_dim,
+            leak_factor=leak_factor,
+            node_bias_opt=node_bias_opt,
+            node_bias_seed=node_bias_seed,
+            node_bias_scale=node_bias_scale,
+            default_r=default_r,
+            x_train_noise_scale=x_train_noise_scale,
+            x_train_noise_seed=x_train_noise_seed,
+        )
+
+        # Activation Function build:
+        ActFunctionMixin.subbuild(
+            self,
+            act_fct_opt=act_fct_opt)
+
+        # Reservoir Network build:
+        NetworkMixin.subbuild(
+            self,
+            n_type_opt=n_type_opt,
+            n_rad=n_rad,
+            n_avg_deg=n_avg_deg,
+            network_creation_attempts=network_creation_attempts,
+            network_creation_seed=network_creation_seed,
+        )
+
+        # R to Rgen build:
+        RToRgenMixin.subbuild(
+            self, r_to_rgen_opt=r_to_rgen_opt)
+
+        # Res output fit:
+        OutputFitMixin.subbuild(
+            self,
+            reg_param=reg_param,
+            ridge_regression_opt=ridge_regression_opt)
+
+        # Hybrid Mixin:
+        HybridMixin.subbuild(self,
+            scale_input_bool=scale_input_bool,
+            scale_input_model_bool=scale_input_model_bool,
+            input_model=input_model,
+            scale_output_model_bool=scale_output_model_bool,
+            output_model=output_model,
+            out_model_is_inp_bool=out_model_is_inp_bool
+        )
 
         # Input Matrix build:
         InputMatrixMixin.subbuild(
