@@ -61,15 +61,6 @@ class ResCompCore(ABC):
         self._last_rfit: np.ndarray | None = None
         self._last_y: np.ndarray | None = None
 
-        # SAVED INTERNAL QUANTITIES:
-        # TODO: Check how to handle.
-        self._saved_res_inp = None
-        self._saved_r_internal = None
-        self._saved_r = None
-        self._saved_r_gen = None
-        self._saved_out = None
-        self._saved_y_train = None
-
     # ABSTRACT TRANSFER FUNCTIONS:
 
     @abstractmethod
@@ -213,11 +204,14 @@ class ResCompCore(ABC):
 
         return xnext
 
-    def drive(self, x_array: np.ndarray) -> np.ndarray:
+    def drive(self, x_array: np.ndarray,
+              more_out_bool: bool = False
+              ) -> np.ndarray | tuple[np.ndarray, dict[str, np.ndarray]]:
         """Drive the reservoir using the input x_array.
 
         Args:
             x_array: The input time series of shape (time_steps, self.x_dim).
+            more_out_bool: Return more internal states if true.
 
         Returns:
             The saved reservoir states.
@@ -227,34 +221,59 @@ class ResCompCore(ABC):
 
         r_array = np.zeros((drive_steps, self.r_dim))
 
+        if more_out_bool:
+            more_out = {"xproc": np.zeros((drive_steps, self.xproc_dim)),
+                        "rinp": np.zeros((drive_steps, self.r_dim)),
+                        "rinternal": np.zeros((drive_steps, self.r_dim))}
+
         for i in range(drive_steps):
             x = x_array[i, :]
             r_array[i, :] = self.res_update_step(x)
 
+            if more_out_bool:
+                more_out["xproc"][i, :] = self._last_xproc
+                more_out["rinp"][i, :] = self._last_rinp
+                more_out["rinternal"][i, :] = self._last_rinternal
+
+        if more_out_bool:
+            return r_array, more_out
+
         return r_array
 
-    def train(self, use_for_train: np.ndarray,
-              sync_steps: int = 0):
+    def train(self,
+              use_for_train: np.ndarray,
+              sync_steps: int = 0,
+              more_out_bool: bool = False
+              ) -> tuple[np.ndarray, np.ndarray] | \
+                   tuple[np.ndarray, np.ndarray, dict[str, np.ndarray]]:
         """Synchronize and train the reservoir.
-
         Args:
             use_for_train: The data used for training of the shape
                            (sync_steps + train_steps, self.x_dim).
             sync_steps: The number of steps to synchronize the reservoir.
+            more_out_bool: Return more internal states if true.
 
         Returns:
-            x_train_fit and x_train.
+            x_train_fit, x_train, (and more_out optionally).
+            more_out = {"xproc": xproc_array,
+                        "rinp": rinp_array,
+                        "rinternal": rinternal_array,
+                        "r": r_array,
+                        "rgen": rgen_array,
+                        "rproc": rproc_array,
+                        "rfit_array": rfit_array,
+                        "y": y_train_fit}.
         """
 
         # Split sync and train steps:
         sync = use_for_train[:sync_steps]
         train = use_for_train[sync_steps:]
 
-        # Set the input preprocess function (which depends on train).
-        self.set_x_to_xproc_fct(train)
-
         # Split train into x_train (input to reservoir) and y_train (output of reservoir).
         x_train, y_train = self.set_y_to_xnext_fct(train)
+
+        # Set the input preprocess function (which depends on train).
+        self.set_x_to_xproc_fct(x_train)
 
         # Add input noise:
         x_train_w_noise = self.add_noise_to_x_train(x_train)
@@ -267,7 +286,11 @@ class ResCompCore(ABC):
 
         # Train synchronized ...
         # Drive reservoir to get r states:
-        r_array = self.drive(x_train_w_noise)
+        drive_out = self.drive(x_train_w_noise, more_out_bool=more_out_bool)
+        if more_out_bool:
+            r_array, more_out_drive = drive_out
+        else:
+            r_array = drive_out
 
         # From r_array get rgen_array:
         # rgen_array = self.r_to_rgen_fct(r_array)
@@ -277,23 +300,36 @@ class ResCompCore(ABC):
         rproc_array = self.set_rgen_to_rproc_fct(rgen_array=rgen_array)
 
         # from rproc_array get rfit_array.
-        # rfit_array = utilities.vectorize(self.rproc_to_rfit_fct, (rproc_array, x_train))
         rfit_array = self.set_rproc_to_rfit_fct(rproc_array=rproc_array, x_train=x_train)
 
         # Perform the fitting:
         y_train_fit = self.set_rfit_to_y_fct(rfit_array=rfit_array, y_train=y_train)
 
         # Get real output from reservoir output:
-        # xnext_train_fit = self.y_to_xnext_fct(y_train_fit)
         xnext_train_fit = utilities.vectorize(self.y_to_xnext_fct, (y_train_fit, ))
 
-        # TODO: Output is not correct, also check what else to output.
-        return xnext_train_fit, x_train
+        # Get real output from desired resrvoir output.
+        xnext_train = utilities.vectorize(self.y_to_xnext_fct, (y_train, ))
+
+        if more_out_bool:
+            more_out = {
+                "r": r_array,
+                "rgen": rgen_array,
+                "rproc": rproc_array,
+                "rfit": rfit_array,
+                "y": y_train_fit}
+
+            more_out = more_out_drive | more_out
+            return xnext_train_fit, xnext_train, more_out
+
+        else:
+            return xnext_train_fit, xnext_train
 
     def predict(self, use_for_pred: np.ndarray,
                 sync_steps: int = 0,
                 pred_steps: int | None = None,
-                reset_reservoir_bool: bool = True
+                reset_reservoir_bool: bool = True,
+                more_out_bool: bool = False
                 ):
         """Predict with the trained reservoir, i.e. let the reservoir run in a loop.
 
@@ -302,6 +338,7 @@ class ResCompCore(ABC):
             sync_steps:  The time steps used to sync the reservoir before prediction.
             pred_steps:  Optional argument to define the number of steps to predict.
             reset_reservoir_bool: Whether to reset the reservoir before sync or not.
+            more_out_bool: Return more internal states if true.
 
         Returns:
             The predicted and true time series.
@@ -327,20 +364,37 @@ class ResCompCore(ABC):
         # Array to save pred_data to:
         pred_data = np.zeros((pred_steps, self.x_dim))
 
-        # loop reservoir to create prediction, i.e. populate pred_data ...
+        # Arrays to save more_out data:
+        if more_out_bool:
+            more_out = {"xproc": np.zeros((pred_steps, self.xproc_dim)),
+                        "rinp": np.zeros((pred_steps, self.r_dim)),
+                        "rinternal": np.zeros((pred_steps, self.r_dim)),
+                        "r": np.zeros((pred_steps, self.r_dim)),
+                        "rgen": np.zeros((pred_steps, self.rgen_dim)),
+                        "rproc": np.zeros((pred_steps, self.rproc_dim)),
+                        "rfit": np.zeros((pred_steps, self.rfit_dim)),
+                        "y": np.zeros((pred_steps, self.y_dim))}
 
-        # Take last reservoir state created during drive and get first output prediction:
-        xnext = self.res_to_output_step()
-        pred_data[0, :] = xnext
+        for i in range(pred_steps):
+            xnext = self.res_to_output_step()  # -> get next output from self._last_r
+            pred_data[i, :] = xnext
+            if more_out_bool:
+                more_out["xproc"][i, :] = self._last_xproc
+                more_out["rinp"][i, :] = self._last_rinp
+                more_out["rinternal"][i, :] = self._last_rinternal
+                more_out["r"][i, :] = self._last_r
+                more_out["rgen"][i, :] = self._last_rgen
+                more_out["rproc"][i, :] = self._last_rproc
+                more_out["rfit"][i, :] = self._last_rfit
+                more_out["y"][i, :] = self._last_y
 
-        for i in range(1, pred_steps):
             # Take predicted output to drive next reservoir update step:
             self.res_update_step(xnext)  # -> sets self._last_r
 
-            xnext = self.res_to_output_step()  # -> get next output from self._last_r
-            pred_data[i, :] = xnext
-
-        return pred_data, true_data
+        if more_out_bool:
+            return pred_data, true_data, more_out
+        else:
+            return pred_data, true_data
 
     def reset_reservoir(self) -> None:
         """Reset the reservoir state."""
@@ -493,6 +547,8 @@ class RToRgenMixin:
             raise ValueError(f"r_to_rgen_opt {r_to_rgen_opt} not recognized! "
                              f"Must be linear_r, linear_and_square_r, output_bias, "
                              f"bias_and_square_r or linear_and_square_r_alt. ")
+
+        self.rgen_dim = self._r_to_rgen_fct(np.ones(self.r_dim)).size
 
 class NetworkMixin:
     """The standard network update function.
@@ -685,6 +741,10 @@ class NoRgenToRprocMixin:
         """No processing of rgen states."""
         return rgen
 
+    def subbuild(self):
+        """subbuild NoRgenToRproc: """
+        self.rproc_dim = self.rgen_dim
+
 class RgenToRprocMixin:
     """Possibility to process Rgen to Rproc. """
     def __init__(self):
@@ -752,6 +812,15 @@ class RgenToRprocMixin:
         self._perform_pca_bool = perform_pca_bool
         self._n_pca_components = pca_components
 
+        if self._perform_pca_bool:
+            if self._n_pca_components is None:
+                self.rproc_dim = self.rgen_dim
+
+            else:
+                self.rproc_dim = self._n_pca_components
+        else:
+            self.rproc_dim = self.rgen_dim
+
 
 class NoRprocToRfitMixin:
     """Very simple rproc_to_rfit_fct: No modification of rproc."""
@@ -766,6 +835,10 @@ class NoRprocToRfitMixin:
     def set_rproc_to_rfit_fct(self, rproc_array: np.ndarray, x_train: np.ndarray) -> np.ndarray:
         """No modification of rproc"""
         return rproc_array
+
+    def subbuild(self):
+        """Sub-buid Rproc to Rfit. """
+        self.rfit_dim = self.rproc_dim
 
 class NoXToXProcMixin:
     """Simple x_to_xproc_fct: No processing of the input. """
@@ -892,7 +965,7 @@ class NoYToXnextMixin:
 
     def subbuild(self):
         """Sub-build the Simple Y to next X Mixin. """
-        pass
+        self.y_dim = self.x_dim
 
 class ScalerYToXnextMixin:
     """Scale fit also on scaled output. """
@@ -937,7 +1010,7 @@ class ScalerYToXnextMixin:
     def subbuild(self, scale_output_bool: bool = False):
         """Sub-build the Simple Y to next X Mixin. """
         self._scale_output_bool = scale_output_bool
-
+        self.y_dim = self.x_dim
 
 # Special Mixins:
 class HybridMixin:
@@ -1078,6 +1151,11 @@ class HybridMixin:
         else:
             self.xproc_dim = self.x_dim + self.input_model(np.ones(self.x_dim)).size
 
+        if self.output_model is None:
+            self.rfit_dim = self.rproc_dim
+        else:
+            self.rfit_dim = self.rproc_dim + self.output_model(np.ones(self.x_dim)).size
+
 
 class ESNSimple(
     ActFunctionMixin,
@@ -1153,10 +1231,29 @@ class ESNSimple(
             x_train_noise_seed=x_train_noise_seed,
         )
 
-        # Activation Function build:
-        ActFunctionMixin.subbuild(
+        # Simple X to XProc:
+        NoXToXProcMixin.subbuild(self)
+
+        # R to Rgen build:
+        RToRgenMixin.subbuild(
+            self, r_to_rgen_opt=r_to_rgen_opt)
+
+        # Rgen to Rproc:
+        NoRgenToRprocMixin.subbuild(self)
+
+        # Rproc to Rfit:
+        NoRprocToRfitMixin.subbuild(self)
+
+        # Y to Xnext:
+        NoYToXnextMixin.subbuild(self)
+
+        # Input Matrix build:
+        InputMatrixMixin.subbuild(
             self,
-            act_fct_opt=act_fct_opt)
+            w_in_opt=w_in_opt,
+            w_in_scale=w_in_scale,
+            w_in_seed=w_in_seed
+            )
 
         # Reservoir Network build:
         NetworkMixin.subbuild(
@@ -1168,28 +1265,16 @@ class ESNSimple(
             network_creation_seed=network_creation_seed,
         )
 
-        # R to Rgen build:
-        RToRgenMixin.subbuild(
-            self, r_to_rgen_opt=r_to_rgen_opt)
+        # Activation Function build:
+        ActFunctionMixin.subbuild(
+            self,
+            act_fct_opt=act_fct_opt)
 
         # Res output fit:
         OutputFitMixin.subbuild(
             self,
             reg_param=reg_param,
             ridge_regression_opt=ridge_regression_opt)
-
-        # Simple X to XProc:
-        NoXToXProcMixin.subbuild(self)
-
-        # Input Matrix build:
-        InputMatrixMixin.subbuild(
-            self,
-            w_in_opt=w_in_opt,
-            w_in_scale=w_in_scale,
-            w_in_seed=w_in_seed
-            )
-
-
 
 class ESN(
     ActFunctionMixin,
@@ -1276,10 +1361,38 @@ class ESN(
             x_train_noise_seed=x_train_noise_seed,
         )
 
-        # Activation Function build:
-        ActFunctionMixin.subbuild(
+        # Scaler X to XProc:
+        ScalerXToXProcMixin.subbuild(
             self,
-            act_fct_opt=act_fct_opt)
+            scale_input_bool=scale_input_bool)
+
+        # R to Rgen build:
+        RToRgenMixin.subbuild(
+            self, r_to_rgen_opt=r_to_rgen_opt)
+
+        # Rgen to Rproc:
+        RgenToRprocMixin.subbuild(
+            self,
+            scale_rgen_bool=scale_rgen_bool,
+            perform_pca_bool=perform_pca_bool,
+            pca_components=pca_components,
+        )
+
+        # Rproc to Rfit:
+        NoRprocToRfitMixin.subbuild(self)
+
+        # Y to Xnext:
+        ScalerYToXnextMixin.subbuild(
+            self,
+            scale_output_bool=scale_output_bool)
+
+        # Input Matrix build:
+        InputMatrixMixin.subbuild(
+            self,
+            w_in_opt=w_in_opt,
+            w_in_scale=w_in_scale,
+            w_in_seed=w_in_seed
+            )
 
         # Reservoir Network build:
         NetworkMixin.subbuild(
@@ -1291,41 +1404,16 @@ class ESN(
             network_creation_seed=network_creation_seed,
         )
 
-        # R to Rgen build:
-        RToRgenMixin.subbuild(
-            self, r_to_rgen_opt=r_to_rgen_opt)
+        # Activation Function build:
+        ActFunctionMixin.subbuild(
+            self,
+            act_fct_opt=act_fct_opt)
 
         # Res output fit:
         OutputFitMixin.subbuild(
             self,
             reg_param=reg_param,
             ridge_regression_opt=ridge_regression_opt)
-
-        # Scaler X to XProc:
-        ScalerXToXProcMixin.subbuild(
-            self,
-            scale_input_bool=scale_input_bool)
-
-        # Input Matrix build:
-        InputMatrixMixin.subbuild(
-            self,
-            w_in_opt=w_in_opt,
-            w_in_scale=w_in_scale,
-            w_in_seed=w_in_seed
-            )
-
-        RgenToRprocMixin.subbuild(
-            self,
-            scale_rgen_bool=scale_rgen_bool,
-            perform_pca_bool=perform_pca_bool,
-            pca_components=pca_components,
-        )
-
-        # Y to Xnext:
-        ScalerYToXnextMixin.subbuild(
-            self,
-            scale_output_bool=scale_output_bool)
-
 
 class ESNHybrid(
     ActFunctionMixin,
@@ -1415,30 +1503,17 @@ class ESNHybrid(
             x_train_noise_seed=x_train_noise_seed,
         )
 
-        # Activation Function build:
-        ActFunctionMixin.subbuild(
-            self,
-            act_fct_opt=act_fct_opt)
-
-        # Reservoir Network build:
-        NetworkMixin.subbuild(
-            self,
-            n_type_opt=n_type_opt,
-            n_rad=n_rad,
-            n_avg_deg=n_avg_deg,
-            network_creation_attempts=network_creation_attempts,
-            network_creation_seed=network_creation_seed,
-        )
-
         # R to Rgen build:
         RToRgenMixin.subbuild(
             self, r_to_rgen_opt=r_to_rgen_opt)
 
-        # Res output fit:
-        OutputFitMixin.subbuild(
+        # Rgen to Rproc:
+        RgenToRprocMixin.subbuild(
             self,
-            reg_param=reg_param,
-            ridge_regression_opt=ridge_regression_opt)
+            scale_rgen_bool=scale_rgen_bool,
+            perform_pca_bool=perform_pca_bool,
+            pca_components=pca_components,
+        )
 
         # Hybrid Mixin:
         HybridMixin.subbuild(self,
@@ -1450,6 +1525,11 @@ class ESNHybrid(
             out_model_is_inp_bool=out_model_is_inp_bool
         )
 
+        # Y to Xnext:
+        ScalerYToXnextMixin.subbuild(
+            self,
+            scale_output_bool=scale_output_bool)
+
         # Input Matrix build:
         InputMatrixMixin.subbuild(
             self,
@@ -1458,14 +1538,23 @@ class ESNHybrid(
             w_in_seed=w_in_seed
             )
 
-        RgenToRprocMixin.subbuild(
+        # Reservoir Network build:
+        NetworkMixin.subbuild(
             self,
-            scale_rgen_bool=scale_rgen_bool,
-            perform_pca_bool=perform_pca_bool,
-            pca_components=pca_components,
+            n_type_opt=n_type_opt,
+            n_rad=n_rad,
+            n_avg_deg=n_avg_deg,
+            network_creation_attempts=network_creation_attempts,
+            network_creation_seed=network_creation_seed,
         )
 
-        # Y to Xnext:
-        ScalerYToXnextMixin.subbuild(
+        # Activation Function build:
+        ActFunctionMixin.subbuild(
             self,
-            scale_output_bool=scale_output_bool)
+            act_fct_opt=act_fct_opt)
+
+        # Res output fit:
+        OutputFitMixin.subbuild(
+            self,
+            reg_param=reg_param,
+            ridge_regression_opt=ridge_regression_opt)
