@@ -784,7 +784,6 @@ class SimpleYtoXnextMixin:
         pass
 
 
-
 class ESN(
     ActFunctionMixin,
     ReservoirNetworkMixin,
@@ -809,16 +808,93 @@ class ESN(
         SimpleYtoXnextMixin.__init__(self)
         RToRgenMixin.__init__(self)
 
-    def build(self, x_dim: int):
-        ResCompCore.subbuild(self, x_dim=x_dim)
+    def build(self,
 
-        ActFunctionMixin.subbuild(self)
-        ReservoirNetworkMixin.subbuild(self)
-        RToRgenMixin.subbuild(self)
-        ReservoirOutputFitMixin.subbuild(self)
+              # BASIC:
+              x_dim: int,
+              r_dim: int = 500,
+              leak_factor: int = 0.0,
+              node_bias_opt: str = "random_bias",
+              node_bias_seed: int | None = None,
+              node_bias_scale: float = 0.1,
+              default_r: np.ndarray | None = None,
+              x_train_noise_scale: float | None = None,
+              x_train_noise_seed: int | None = None,
+
+              #ACT FCT:
+              act_fct_opt: str = "tanh",
+
+              # Reservoir Network:
+              n_type_opt: str = "erdos_renyi",
+              n_rad: float = 0.1,
+              n_avg_deg: float = 6.0,
+              network_creation_attempts: int = 10,
+              network_creation_seed: int | None = None,
+
+              # R to Rgen:
+              r_to_rgen_opt: str = "linear_r",
+
+              # Output fit / Training:
+              reg_param: float = 1e-8,
+              ridge_regression_opt: str = "no_bias",
+
+              # Input Matrix:
+              w_in_opt: str = "random_sparse",
+              w_in_scale: float = 1.0,
+              w_in_seed: int | None = None
+              ):
+
+        # Basic Rescomp build:
+        ResCompCore.subbuild(
+            self,
+            x_dim=x_dim,
+            r_dim=r_dim,
+            leak_factor=leak_factor,
+            node_bias_opt=node_bias_opt,
+            node_bias_seed=node_bias_seed,
+            node_bias_scale=node_bias_scale,
+            default_r=default_r,
+            x_train_noise_scale=x_train_noise_scale,
+            x_train_noise_seed=x_train_noise_seed,
+        )
+
+        # Activation Function build:
+        ActFunctionMixin.subbuild(
+            self,
+            act_fct_opt=act_fct_opt)
+
+        # Reservoir Network build:
+        ReservoirNetworkMixin.subbuild(
+            self,
+            n_type_opt=n_type_opt,
+            n_rad=n_rad,
+            n_avg_deg=n_avg_deg,
+            network_creation_attempts=network_creation_attempts,
+            network_creation_seed=network_creation_seed,
+        )
+
+        # R to Rgen build:
+        RToRgenMixin.subbuild(
+            self, r_to_rgen_opt=r_to_rgen_opt)
+
+        # Res output fit:
+        ReservoirOutputFitMixin.subbuild(
+            self,
+            reg_param=reg_param,
+            ridge_regression_opt=ridge_regression_opt)
+
+        # Simple X to XProc:
         XToXProcSimple.subbuild(self)
-        SimpleInputMatrixMixin.subbuild(self) # after xproc dim.
-        SimpleYtoXnextMixin.subbuild(self) # after xproc dim.
 
+        # Input Matrix build:
+        SimpleInputMatrixMixin.subbuild(
+            self,
+            w_in_opt=w_in_opt,
+            w_in_scale=w_in_scale,
+            w_in_seed=w_in_seed
+            )
+
+
+        # SimpleYtoXnextMixin.subbuild(self) # after xproc dim.
         # SimpleRgenToRprocMixin no subbuild needed.
         # SimpleRprocToRfitMixin no subbuild needed.
