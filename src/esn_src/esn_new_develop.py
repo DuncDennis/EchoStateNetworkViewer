@@ -867,7 +867,7 @@ class InputMatrixMixin:
         elif w_in_opt == "random_dense_gaussian":
             self.w_in = w_in_scale * rng.randn(self.r_dim, self.xproc_dim)
 
-class NoYtoXnextMixin:
+class NoYToXnextMixin:
     """The simplest resoutput Y to next input x function y_to_xnext_fct: Identity function. """
     def __init__(self):
         pass
@@ -887,7 +887,7 @@ class NoYtoXnextMixin:
         """Sub-build the Simple Y to next X Mixin. """
         pass
 
-class ScalerYtoXnextMixin:
+class ScalerYToXnextMixin:
     """Scale fit also on scaled output. """
     def __init__(self):
         self._scale_output_bool: bool | None = None
@@ -932,6 +932,144 @@ class ScalerYtoXnextMixin:
         self._scale_output_bool = scale_output_bool
 
 
+# Special Mixins:
+class HybridMixin:
+    """Special Mixin to support Hybrid RC, combining ESN with knowledge-based model:
+
+    Related to:
+    Pathak, J., Wikner, A., Fussell, R., Chandra, S., Hunt, B., Girvan, M., & Ott, E.
+    (2018). Hybrid Forecasting of Chaotic Processes: Using Machine Learning in Conjunction with a
+    Knowledge-Based Model. Chaos, 28(4). https://doi.org/10.1063/1.5028373
+    """
+
+    def __init__(self):
+        # Hybrid Model:
+        self.input_model: Callable[[np.ndarray], np.ndarray] | None = None
+        self.output_model: Callable[[np.ndarray], np.ndarray] | None = None
+        self._out_model_is_inp_bool: bool | None = None
+        self._last_input_model_result: np.ndarray | None = None
+
+        # Scaler XToXProc:
+        self._scale_input_bool: bool | None = None
+        self.standard_scaler: None | StandardScaler = None
+        self._x_to_xproc_fct: Callable[[np.ndarray], np.ndarray] | None = None
+
+        # Scaler YtoXnextMixin
+        self._scale_output_bool: bool | None = None
+        self._y_to_xnext_fct: Callable[[np.ndarray], np.ndarray] | None = None
+
+
+    def x_to_xproc_fct(self, x: np.ndarray) -> np.ndarray:
+        """Scale and shift + input model."""
+        return self._x_to_xproc_fct(x)
+
+    def set_x_to_xproc_fct(self, train: np.ndarray):
+        """Scale and shift + input model."""
+
+        if self.input_model is not None:
+            def input_model(x):
+                # to be able to save the model evaluation.
+                self._last_input_model_result = self.input_model(x)
+                return self._last_input_model_result
+
+        if self._scale_input_bool:
+            self.standard_scaler = StandardScaler()
+            self.standard_scaler.fit(train)
+
+            _inp_scaler = \
+                lambda x: self.standard_scaler.transform(x[np.newaxis, :])[0, :]
+
+            if self.input_model is not None: # If input scaler and input model.
+                self._x_to_xproc_fct = \
+                    lambda x: np.hstack((_inp_scaler(x), _inp_scaler(input_model(x))))
+
+            else: # If only input scaler.
+                self._x_to_xproc_fct = \
+                    lambda x: _inp_scaler(x)
+
+        else:
+            if self.input_model is not None: # If only input model.
+                self._x_to_xproc_fct = \
+                    lambda x: np.hstack((x, input_model(x)))
+            else: # If no input model and no scaler.
+                self._x_to_xproc_fct = lambda x: x
+
+    def rproc_to_rfit_fct(self,
+                          rproc: np.ndarray,
+                          x: np.ndarray | None = None) -> np.ndarray:
+        """Output model:
+        # TODO: add output scaler to model.
+        # TODO: Check if model already calcualted.
+        """
+        if self.output_model is None:
+            return rproc
+
+        else:
+            if self._out_model_is_inp_bool:
+                model_result = self._last_input_model_result
+            else:
+                model_result = self.output_model(x)
+
+        return np.hstack((rproc, model_result))
+
+    # def y_to_xnext_fct(self,
+    #                    y: np.ndarray,
+    #                    x: np.ndarray | None = None) -> np.ndarray:
+    #     """Either identity or scaler. """
+    #     return self._y_to_xnext_fct(y, x)
+    #
+    # def set_y_to_xnext_fct(self, train: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    #     """Either add the output standard scaler or not.
+    #     # TODO: this is probably not even needed here.
+    #     """
+    #
+    #     x_train = train[: -1, :]
+    #     y_train = train[1:, :]
+    #
+    #     if self._scale_output_bool:
+    #         # Check if there is already a standard scaler defined from XToXProcMixin.
+    #
+    #         if self.standard_scaler is None:
+    #             self.standard_scaler = StandardScaler()
+    #             self.standard_scaler.fit(train)
+    #
+    #         # Transform the output to be fitted:
+    #         y_train = self.standard_scaler.transform(y_train)
+    #
+    #         # Define the y_to_xnext_fct:
+    #         self._y_to_xnext_fct = lambda y, x: \
+    #             self.standard_scaler.inverse_transform(y[np.newaxis, :])[0, :]
+    #     else:
+    #         # Or just the identity:
+    #         self._y_to_xnext_fct = lambda y, x: y
+    #
+    #     return x_train, y_train
+
+    def subbuild(self,
+                 scale_input_bool: bool = False,
+                 # scale_output_bool: bool = False,
+                 input_model: Callable[[np.ndarray], np.ndarray] | None = None,
+                 output_model: Callable[[np.ndarray], np.ndarray] | None = None,
+                 out_model_is_inp_bool: bool = False,
+                 ):
+
+        """Hybrid ESN sub-build. """
+        self._scale_input_bool = scale_input_bool
+        # self._scale_output_bool = scale_output_bool
+
+        self._out_model_is_inp_bool = out_model_is_inp_bool
+
+        self.input_model = input_model
+        if self._out_model_is_inp_bool:
+            self.output_model = input_model
+        else:
+            self.output_model = output_model
+
+        if self.input_model is None:
+            self.xproc_dim = self.x_dim
+        else:
+            self.xproc_dim = self.x_dim + self.input_model(np.ones(self.x_dim)).size
+
 
 class ESN(
     ActFunctionMixin,
@@ -942,7 +1080,7 @@ class ESN(
     NoRprocToRfitMixin,
     NoXToXProcMixin,
     InputMatrixMixin,
-    NoYtoXnextMixin,
+    NoYToXnextMixin,
     ResCompCore):
 
     def __init__(self):
@@ -954,7 +1092,7 @@ class ESN(
         NoRprocToRfitMixin.__init__(self)
         NoXToXProcMixin.__init__(self)
         InputMatrixMixin.__init__(self)
-        NoYtoXnextMixin.__init__(self)
+        NoYToXnextMixin.__init__(self)
         RToRgenMixin.__init__(self)
 
     def build(self,
@@ -1059,7 +1197,7 @@ class ESN2(
     NoRprocToRfitMixin,
     ScalerXToXProcMixin,
     InputMatrixMixin,
-    ScalerYtoXnextMixin,
+    ScalerYToXnextMixin,
     ResCompCore):
 
     def __init__(self):
@@ -1071,7 +1209,7 @@ class ESN2(
         NoRprocToRfitMixin.__init__(self)
         ScalerXToXProcMixin.__init__(self)
         InputMatrixMixin.__init__(self)
-        ScalerYtoXnextMixin.__init__(self)
+        ScalerYToXnextMixin.__init__(self)
         RToRgenMixin.__init__(self)
 
     def build(self,
@@ -1181,10 +1319,6 @@ class ESN2(
         )
 
         # Y to Xnext:
-        ScalerYtoXnextMixin.subbuild(
+        ScalerYToXnextMixin.subbuild(
             self,
             scale_output_bool=scale_output_bool)
-
-
-        # NoRgenToRprocMixin no subbuild needed.
-        # NoRprocToRfitMixin no subbuild needed.
