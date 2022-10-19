@@ -14,6 +14,10 @@ from scipy import sparse
 from scipy.sparse import linalg
 from scipy.sparse.linalg.eigen.arpack.arpack \
     import ArpackNoConvergence as _ArpackNoConvergence
+# For Input/Output/Rgen scaler:
+from sklearn.preprocessing import StandardScaler
+# FOR Rgen pca:
+from sklearn.decomposition import PCA
 
 import src.esn_src.utilities as utilities
 
@@ -280,6 +284,7 @@ class ResCompCore(ABC):
         # xnext_train_fit = self.y_to_xnext_fct(y_train_fit)
         xnext_train_fit = utilities.vectorize(self.y_to_xnext_fct, (y_train_fit, ))
 
+        # TODO: Output is not correct, also check what else to output.
         return xnext_train_fit, x_train
 
     def predict(self, use_for_pred: np.ndarray,
@@ -486,7 +491,7 @@ class RToRgenMixin:
                              f"Must be linear_r, linear_and_square_r, output_bias, "
                              f"bias_and_square_r or linear_and_square_r_alt. ")
 
-class ReservoirNetworkMixin:
+class NetworkMixin:
     """The standard network update function.
     # TODO: functions are just more or less copied from old rescomp code.
     """
@@ -608,7 +613,7 @@ class ReservoirNetworkMixin:
             raise Exception("Network creation during ESN init failed %d times"
                             % network_creation_attempts)
 
-class ReservoirOutputFitMixin:
+class OutputFitMixin:
     """Standard Ridge Regression (RR) output fit from reservoir to output. """
     def __init__(self) -> None:
         self.reg_param: float | None = None  # the regularization parameter for RR.
@@ -664,7 +669,7 @@ class ReservoirOutputFitMixin:
         else:
             self._ridge_regression_opt = ridge_regression_opt
 
-class SimpleRgenToRprocMixin:
+class NoRgenToRprocMixin:
     """Very simple rgen_to_rproc_fct: No processing of rgen states."""
     def __init__(self):
         pass
@@ -677,7 +682,75 @@ class SimpleRgenToRprocMixin:
         """No processing of rgen states."""
         return rgen
 
-class SimpleRprocToRfitMixin:
+class RgenToRprocMixin:
+    """Possibility to process Rgen to Rproc. """
+    def __init__(self):
+        # Scale(!) and center Rgen states:
+        self._scale_rgen_bool: bool | None = None  # Whether to rescale rgen states
+        self.rgen_standard_scaler: None | StandardScaler = None
+
+        # PCA transform (scaled and centered) Rgen states:
+        self._perform_pca_bool: bool | None = None
+        self._n_pca_components: int | None = None
+        self._pca_matrix: np.ndarray | None = None
+        self._pca_rgen_mean: np.ndarray | None = None
+        self.pca_object: None | PCA = None
+
+        # Function:
+        self._rgen_to_rproc_fct: Callable[[np.ndarray], np.ndarray] | None = None
+
+    def set_rgen_to_rproc_fct(self, rgen_array: np.ndarray) -> np.ndarray:
+        """No processing of rgen states."""
+        if self._scale_rgen_bool:
+            self.rgen_standard_scaler = StandardScaler()
+            rgen_array = self.rgen_standard_scaler.fit_transform(rgen_array)
+
+
+        if self._perform_pca_bool:
+            self.pca_object = PCA(n_components=self._n_pca_components)
+            self._pca_rgen_mean = np.mean(rgen_array, axis=0)
+            rgen_array = self.pca_object.fit_transform(rgen_array)
+            self._pca_matrix = self.pca_object.components_
+
+        if self._scale_rgen_bool:
+           _rgen_to_rproc_fct_scaler = \
+                lambda rgen: self.rgen_standard_scaler.transform(rgen[np.newaxis, :])[0, :]
+
+        if self._perform_pca_bool:
+            _rgen_to_rproc_fct_pca = \
+                lambda rgen: self._pca_matrix @ (rgen - self._pca_rgen_mean)
+
+        if self._scale_rgen_bool and self._perform_pca_bool:  # Scale+Center and then PCA
+            self._rgen_to_rproc_fct = \
+                lambda rgen: _rgen_to_rproc_fct_pca(_rgen_to_rproc_fct_scaler(rgen))
+
+        elif self._scale_rgen_bool and not(self._perform_pca_bool): # Only Scale+Center
+            self._rgen_to_rproc_fct = lambda rgen: _rgen_to_rproc_fct_scaler(rgen)
+
+        elif not(self._scale_rgen_bool) and self._perform_pca_bool:  # Only PCA
+            self._rgen_to_rproc_fct = lambda rgen: _rgen_to_rproc_fct_pca(rgen)
+
+        else: # No processing of rgen
+            self._rgen_to_rproc_fct = lambda rgen: rgen
+
+        return rgen_array
+
+    def rgen_to_rproc_fct(self, rgen: np.ndarray) -> np.ndarray:
+        """Some processing of rgen states."""
+        return self._rgen_to_rproc_fct(rgen)
+
+    def subbuild(self,
+                 scale_rgen_bool: bool = False,
+                 perform_pca_bool: bool = False,
+                 pca_components: int | None = None
+                 ):
+
+        self._scale_rgen_bool = scale_rgen_bool
+        self._perform_pca_bool = perform_pca_bool
+        self._n_pca_components = pca_components
+
+
+class NoRprocToRfitMixin:
     """Very simple rproc_to_rfit_fct: No modification of rproc."""
     def __init__(self):
         pass
@@ -687,7 +760,7 @@ class SimpleRprocToRfitMixin:
         """No modification of rproc"""
         return rproc
 
-class XToXProcSimple:
+class NoXToXProcMixin:
     """Simple x_to_xproc_fct: No processing of the input. """
     def __init__(self):
         pass
@@ -704,7 +777,38 @@ class XToXProcSimple:
         Just set xproc_dim to x_dim. """
         self.xproc_dim = self.x_dim
 
-class SimpleInputMatrixMixin:
+
+class ScalerXToXProcMixin:
+    """Scale and center input x with sklearns StandardScaler, (i.e. no mean and unit-variance). """
+    def __init__(self):
+
+        self._scale_input_bool: bool | None = None
+        self.standard_scaler: None | StandardScaler = None
+        self._x_to_xproc_fct: Callable[[np.ndarray], np.ndarray] | None = None
+
+    def x_to_xproc_fct(self, x: np.ndarray) -> np.ndarray:
+        """Scale and shift"""
+        return self._x_to_xproc_fct(x)
+
+    def set_x_to_xproc_fct(self, train: np.ndarray):
+        """Scale and shift"""
+
+        if self._scale_input_bool:
+            self.standard_scaler = StandardScaler()
+            self.standard_scaler.fit(train)
+            self._x_to_xproc_fct = lambda x: \
+                self.standard_scaler.transform(x[np.newaxis, :])[0, :]
+
+        else:
+            self._x_to_xproc_fct = lambda x: x
+
+    def subbuild(self, scale_input_bool: bool = False):
+        """Subbuild for standard scaling x_to_xproc_fct."""
+        self.xproc_dim = self.x_dim
+        self._scale_input_bool = scale_input_bool
+
+
+class InputMatrixMixin:
     """Simple Input matrix. """
     def __init__(self):
         self.w_in: np.ndarray | None = None
@@ -763,7 +867,7 @@ class SimpleInputMatrixMixin:
         elif w_in_opt == "random_dense_gaussian":
             self.w_in = w_in_scale * rng.randn(self.r_dim, self.xproc_dim)
 
-class SimpleYtoXnextMixin:
+class NoYtoXnextMixin:
     """The simplest resoutput Y to next input x function y_to_xnext_fct: Identity function. """
     def __init__(self):
         pass
@@ -783,29 +887,74 @@ class SimpleYtoXnextMixin:
         """Sub-build the Simple Y to next X Mixin. """
         pass
 
+class ScalerYtoXnextMixin:
+    """Scale fit also on scaled output. """
+    def __init__(self):
+        self._scale_output_bool: bool | None = None
+        self._y_to_xnext_fct: Callable[[np.ndarray], np.ndarray] | None = None
+
+
+    def y_to_xnext_fct(self, y: np.ndarray,
+                       x: np.ndarray | None = None) -> np.ndarray:
+        """Either identity or scaler. """
+        return self._y_to_xnext_fct(y, x)
+
+    def set_y_to_xnext_fct(self, train: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Either add the output standard scaler or not. """
+
+        x_train = train[: -1, :]
+        y_train = train[1:, :]
+
+        if self._scale_output_bool:
+            # Check if there is already a standard scaler defined from XToXProcMixin.
+            if not hasattr(self, "standard_scaler"):
+                self.standard_scaler = StandardScaler()
+                self.standard_scaler.fit(train)
+            else:
+                if self.standard_scaler is None:
+                    self.standard_scaler = StandardScaler()
+                    self.standard_scaler.fit(train)
+
+            # Transform the output to be fitted:
+            y_train = self.standard_scaler.transform(y_train)
+
+            # Define the y_to_xnext_fct:
+            self._y_to_xnext_fct = lambda y, x: \
+                self.standard_scaler.inverse_transform(y[np.newaxis, :])[0, :]
+        else:
+            # Or just the identity:
+            self._y_to_xnext_fct = lambda y, x: y
+
+        return x_train, y_train
+
+    def subbuild(self, scale_output_bool: bool = False):
+        """Sub-build the Simple Y to next X Mixin. """
+        self._scale_output_bool = scale_output_bool
+
+
 
 class ESN(
     ActFunctionMixin,
-    ReservoirNetworkMixin,
-    ReservoirOutputFitMixin,
+    NetworkMixin,
+    OutputFitMixin,
     RToRgenMixin,
-    SimpleRgenToRprocMixin,
-    SimpleRprocToRfitMixin,
-    XToXProcSimple,
-    SimpleInputMatrixMixin,
-    SimpleYtoXnextMixin,
+    NoRgenToRprocMixin,
+    NoRprocToRfitMixin,
+    NoXToXProcMixin,
+    InputMatrixMixin,
+    NoYtoXnextMixin,
     ResCompCore):
 
     def __init__(self):
         ResCompCore.__init__(self)
         ActFunctionMixin.__init__(self)
-        ReservoirNetworkMixin.__init__(self)
-        ReservoirOutputFitMixin.__init__(self)
-        SimpleRgenToRprocMixin.__init__(self)
-        SimpleRprocToRfitMixin.__init__(self)
-        XToXProcSimple.__init__(self)
-        SimpleInputMatrixMixin.__init__(self)
-        SimpleYtoXnextMixin.__init__(self)
+        NetworkMixin.__init__(self)
+        OutputFitMixin.__init__(self)
+        NoRgenToRprocMixin.__init__(self)
+        NoRprocToRfitMixin.__init__(self)
+        NoXToXProcMixin.__init__(self)
+        InputMatrixMixin.__init__(self)
+        NoYtoXnextMixin.__init__(self)
         RToRgenMixin.__init__(self)
 
     def build(self,
@@ -864,7 +1013,7 @@ class ESN(
             act_fct_opt=act_fct_opt)
 
         # Reservoir Network build:
-        ReservoirNetworkMixin.subbuild(
+        NetworkMixin.subbuild(
             self,
             n_type_opt=n_type_opt,
             n_rad=n_rad,
@@ -878,16 +1027,16 @@ class ESN(
             self, r_to_rgen_opt=r_to_rgen_opt)
 
         # Res output fit:
-        ReservoirOutputFitMixin.subbuild(
+        OutputFitMixin.subbuild(
             self,
             reg_param=reg_param,
             ridge_regression_opt=ridge_regression_opt)
 
         # Simple X to XProc:
-        XToXProcSimple.subbuild(self)
+        NoXToXProcMixin.subbuild(self)
 
         # Input Matrix build:
-        SimpleInputMatrixMixin.subbuild(
+        InputMatrixMixin.subbuild(
             self,
             w_in_opt=w_in_opt,
             w_in_scale=w_in_scale,
@@ -895,6 +1044,147 @@ class ESN(
             )
 
 
+
         # SimpleYtoXnextMixin.subbuild(self) # after xproc dim.
         # SimpleRgenToRprocMixin no subbuild needed.
         # SimpleRprocToRfitMixin no subbuild needed.
+
+
+class ESN2(
+    ActFunctionMixin,
+    NetworkMixin,
+    OutputFitMixin,
+    RToRgenMixin,
+    RgenToRprocMixin,
+    NoRprocToRfitMixin,
+    ScalerXToXProcMixin,
+    InputMatrixMixin,
+    ScalerYtoXnextMixin,
+    ResCompCore):
+
+    def __init__(self):
+        ResCompCore.__init__(self)
+        ActFunctionMixin.__init__(self)
+        NetworkMixin.__init__(self)
+        OutputFitMixin.__init__(self)
+        RgenToRprocMixin.__init__(self)
+        NoRprocToRfitMixin.__init__(self)
+        ScalerXToXProcMixin.__init__(self)
+        InputMatrixMixin.__init__(self)
+        ScalerYtoXnextMixin.__init__(self)
+        RToRgenMixin.__init__(self)
+
+    def build(self,
+
+              # BASIC:
+              x_dim: int,
+              r_dim: int = 500,
+              leak_factor: int = 0.0,
+              node_bias_opt: str = "random_bias",
+              node_bias_seed: int | None = None,
+              node_bias_scale: float = 0.1,
+              default_r: np.ndarray | None = None,
+              x_train_noise_scale: float | None = None,
+              x_train_noise_seed: int | None = None,
+
+              #ACT FCT:
+              act_fct_opt: str = "tanh",
+
+              # Reservoir Network:
+              n_type_opt: str = "erdos_renyi",
+              n_rad: float = 0.1,
+              n_avg_deg: float = 6.0,
+              network_creation_attempts: int = 10,
+              network_creation_seed: int | None = None,
+
+              # R to Rgen:
+              r_to_rgen_opt: str = "linear_r",
+
+              # Output fit / Training:
+              reg_param: float = 1e-8,
+              ridge_regression_opt: str = "no_bias",
+
+              # X to Xproc Standard Scaler:
+              scale_input_bool: bool = False,
+
+              # Input Matrix:
+              w_in_opt: str = "random_sparse",
+              w_in_scale: float = 1.0,
+              w_in_seed: int | None = None,
+
+              # Rgen to Rproc:
+              scale_rgen_bool: bool = False,
+              perform_pca_bool: bool = False,
+              pca_components: int | None = None,
+
+              # Y to Xnext Standard Scaler:
+              scale_output_bool: bool = False,
+              ):
+
+        # Basic Rescomp build:
+        ResCompCore.subbuild(
+            self,
+            x_dim=x_dim,
+            r_dim=r_dim,
+            leak_factor=leak_factor,
+            node_bias_opt=node_bias_opt,
+            node_bias_seed=node_bias_seed,
+            node_bias_scale=node_bias_scale,
+            default_r=default_r,
+            x_train_noise_scale=x_train_noise_scale,
+            x_train_noise_seed=x_train_noise_seed,
+        )
+
+        # Activation Function build:
+        ActFunctionMixin.subbuild(
+            self,
+            act_fct_opt=act_fct_opt)
+
+        # Reservoir Network build:
+        NetworkMixin.subbuild(
+            self,
+            n_type_opt=n_type_opt,
+            n_rad=n_rad,
+            n_avg_deg=n_avg_deg,
+            network_creation_attempts=network_creation_attempts,
+            network_creation_seed=network_creation_seed,
+        )
+
+        # R to Rgen build:
+        RToRgenMixin.subbuild(
+            self, r_to_rgen_opt=r_to_rgen_opt)
+
+        # Res output fit:
+        OutputFitMixin.subbuild(
+            self,
+            reg_param=reg_param,
+            ridge_regression_opt=ridge_regression_opt)
+
+        # Scaler X to XProc:
+        ScalerXToXProcMixin.subbuild(
+            self,
+            scale_input_bool=scale_input_bool)
+
+        # Input Matrix build:
+        InputMatrixMixin.subbuild(
+            self,
+            w_in_opt=w_in_opt,
+            w_in_scale=w_in_scale,
+            w_in_seed=w_in_seed
+            )
+
+        RgenToRprocMixin.subbuild(
+            self,
+            scale_rgen_bool=scale_rgen_bool,
+            perform_pca_bool=perform_pca_bool,
+            pca_components=pca_components,
+        )
+
+        # Y to Xnext:
+        ScalerYtoXnextMixin.subbuild(
+            self,
+            scale_output_bool=scale_output_bool)
+
+
+        # NoRgenToRprocMixin no subbuild needed.
+        # NoRprocToRfitMixin no subbuild needed.
