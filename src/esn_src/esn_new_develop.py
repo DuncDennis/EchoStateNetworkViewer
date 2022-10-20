@@ -421,13 +421,12 @@ class ResCompCore(ABC):
         elif node_bias_opt == "random_bias":
             if node_bias_seed is not None:
                 rng = np.random.default_rng(node_bias_seed)
-                self.node_bias = node_bias_scale * rng.uniform(low=-1.0,
-                                                               high=1.0,
-                                                               size=self.r_dim)
-            else: # Use global seed:
-                self.node_bias = node_bias_scale * np.random.uniform(low=-1.0,
-                                                                     high=1.0,
-                                                                     size=self.r_dim)
+            else:
+                rng = np.random
+            self.node_bias = node_bias_scale * rng.uniform(low=-1.0,
+                                                           high=1.0,
+                                                           size=self.r_dim)
+
         elif node_bias_opt == "constant_bias":
             self.node_bias =  node_bias_scale * np.ones(self.r_dim)
 
@@ -570,27 +569,22 @@ class NetworkMixin:
                                     ) -> None:
         """ Generate the baseline random network to be scaled"""
 
-        if network_creation_seed is None:
-            seed = np.random
-        else:
-            seed = network_creation_seed
-
         if n_type_opt == "erdos_renyi":
             network = nx.fast_gnp_random_graph(self.r_dim,
                                                self._n_edge_prob,
-                                               seed=seed)
+                                               seed=np.random)
         elif n_type_opt == "scale_free":
             network = nx.barabasi_albert_graph(self.r_dim,
                                                int(self._n_avg_deg / 2),
-                                               seed=seed)
+                                               seed=np.random)
         elif n_type_opt == "small_world":
             network = nx.watts_strogatz_graph(self.r_dim,
                                               k=int(self._n_avg_deg), p=0.1,
-                                              seed=seed)
+                                              seed=np.random)
         elif n_type_opt == "erdos_renyi_directed":
             network = nx.fast_gnp_random_graph(self.r_dim,
                                                self._n_edge_prob,
-                                               seed=seed,
+                                               seed=np.random,
                                                directed=True)
         elif n_type_opt == "random_dense":
             network = nx.from_numpy_matrix(np.ones((self.r_dim, self.r_dim)))
@@ -601,7 +595,8 @@ class NetworkMixin:
                              f"erdos_renyi_directed or random_dense.")
         self._network = nx.to_numpy_array(network)
 
-    def _vary_network(self, network_variation_attempts: int = 10) -> None:
+    def _vary_network(self,
+                      network_variation_attempts: int = 10) -> None:
         """ Varies the weights of self._network, while conserving the topology.
 
         The non-zero elements of the adjacency matrix are uniformly randomized,
@@ -660,17 +655,19 @@ class NetworkMixin:
         self._n_rad = n_rad
         self._n_avg_deg = n_avg_deg
         self._n_edge_prob = self._n_avg_deg / (self.r_dim - 1)
-        for i in range(network_creation_attempts):
-            try:
-                self._create_network_connections(n_type_opt,
-                                                 network_creation_seed)
-                self._vary_network()
-            except _ArpackNoConvergence:
-                continue
-            break
-        else:
-            raise Exception("Network creation during ESN init failed %d times"
-                            % network_creation_attempts)
+
+        with utilities.temp_seed(network_creation_seed):
+            for i in range(network_creation_attempts):
+                try:
+                    self._create_network_connections(n_type_opt,
+                                                     network_creation_seed)
+                    self._vary_network()
+                except _ArpackNoConvergence:
+                    continue
+                break
+            else:
+                raise Exception("Network creation during ESN init failed %d times"
+                                % network_creation_attempts)
 
 class OutputFitMixin:
     """Standard Ridge Regression (RR) output fit from reservoir to output. """
@@ -1558,3 +1555,6 @@ class ESNHybrid(
             self,
             reg_param=reg_param,
             ridge_regression_opt=ridge_regression_opt)
+
+ESN_DICT = {"ESN": ESN,
+            "ESNHybrid": ESNHybrid}
