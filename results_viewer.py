@@ -8,6 +8,62 @@ import numpy as np
 
 import src.streamlit_src.app_fragments.streamlit_utilities as utils
 
+# Def to modify the figure:
+def modify_fig(fig):
+    # yaxis_title = r'$\text{Valid Time }(\lambda_\mathrm{max} t_v)$'
+    yaxis_title = r'Valid Time'
+    xaxis_title = "r_dim"
+    title = None
+
+    height = 500
+    width = int(1.4 * height)
+    # figsize = (y_size, x_size)
+
+    xtick0 = 0
+    xdtick = 500
+    ytick0 = 0
+    ydtick = 5
+    xrange = [0, 1250]
+    yrange = [0, 15]
+
+    font_size = 15
+    legend_font_size = 11
+
+    fig.update_yaxes(range=yrange)
+    fig.update_xaxes(range=xrange)
+
+    fig.update_layout(
+        title=title,
+        width=width,
+        height=height,
+        yaxis_title=yaxis_title,
+        xaxis_title=xaxis_title,
+        xaxis=dict(
+            tickmode='linear',
+            tick0=xtick0,
+            dtick=xdtick
+        ),
+        yaxis=dict(
+            tickmode='linear',
+            tick0=ytick0,
+            dtick=ydtick
+        ),
+
+        font=dict(
+            size=font_size,
+            family="Times New Roman"
+        ),
+
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.01,  # 0.99
+            xanchor="left",
+            # x=0.01,
+            font=dict(size=legend_font_size))
+
+    )
+
 ### statistical functions:
 def mean(x):
     return np.mean(x)
@@ -154,7 +210,10 @@ if filtered_df is not None:
                            name=name
                            )
             )
+
         fig.update_yaxes(title=metric)
         fig.update_xaxes(title=sweep_param)
         fig.update_layout(title=avg_mode)
+
+        modify_fig(fig)
         st.plotly_chart(fig)

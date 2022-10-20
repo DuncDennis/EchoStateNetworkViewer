@@ -306,10 +306,10 @@ class ResCompCore(ABC):
         y_train_fit = self.set_rfit_to_y_fct(rfit_array=rfit_array, y_train=y_train)
 
         # Get real output from reservoir output:
-        xnext_train_fit = utilities.vectorize(self.y_to_xnext_fct, (y_train_fit, ))
+        xnext_train_fit = utilities.vectorize(self.y_to_xnext_fct, (y_train_fit, x_train))
 
-        # Get real output from desired resrvoir output.
-        xnext_train = utilities.vectorize(self.y_to_xnext_fct, (y_train, ))
+        # Get real output from desired reservoir output.
+        xnext_train = utilities.vectorize(self.y_to_xnext_fct, (y_train, x_train))
 
         if more_out_bool:
             more_out = {
@@ -1010,6 +1010,7 @@ class ScalerYToXnextMixin:
         self.y_dim = self.x_dim
 
 # Special Mixins:
+# Hybrid Mixin:
 class HybridMixin:
     """Special Mixin to support Hybrid RC, combining ESN with knowledge-based model:
 
@@ -1152,6 +1153,53 @@ class HybridMixin:
             self.rfit_dim = self.rproc_dim
         else:
             self.rfit_dim = self.rproc_dim + self.output_model(np.ones(self.x_dim)).size
+
+
+# Hybrid B Mixin
+class HybridBMixin:
+    """Special Mixin to support Hybrid RC, combining ESN with knowledge-based model:
+
+    NOTE: This is essentially the same as "output hybrid".
+
+    Idea is:
+    Model: M creates a knowledge based prediction: M[x_i] = x^M_(i+1)
+    Reservoir is trained on difference between real output x_(i+1) and model-output x^M_(i+1).
+    I.e. it is trained on y_i = x_(i+1) - M_(i+1) (which may be scaled and centered).
+    The final prediction is then created by: y_i + M[x_i] -> x_(i+1).
+
+    Functions that have to be set here:
+    - YToXnext. -> Define x_train y_train split. Define how output is converted back to input.
+    """
+
+    def __init__(self):
+        self.model: Callable[[np.ndarray], np.ndarray] | None = None
+        # self._y_to_xnext_fct: Callable[[np.ndarray], np.ndarray] | None = None
+
+
+    def y_to_xnext_fct(self, y: np.ndarray,
+                       x: np.ndarray | None = None) -> np.ndarray:
+        """Next time step is model output + esn output. """
+
+        return self.model(x) + y
+
+    def set_y_to_xnext_fct(self, train: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Define the training output, to be the difference between the true model to the
+        model prediction. """
+
+        x_train = train[: -1, :]
+
+        y_train_model = utilities.vectorize(self.model, (x_train, ))
+
+        y_train_true = train[1:, :]
+
+        y_train = y_train_true - y_train_model
+
+        return x_train, y_train
+
+    def subbuild(self, model: Callable[[np.ndarray], np.ndarray] = lambda x: x):
+        """Sub-build the alternative hybrid model. """
+        self.model = model
+        self.y_dim = self.x_dim
 
 
 class ESNSimple(
@@ -1555,6 +1603,147 @@ class ESNHybrid(
             self,
             reg_param=reg_param,
             ridge_regression_opt=ridge_regression_opt)
+
+
+class ESNHybridB(
+    ActFunctionMixin,
+    NetworkMixin,
+    OutputFitMixin,
+    RToRgenMixin,
+    RgenToRprocMixin,
+    NoRprocToRfitMixin,
+    ScalerXToXProcMixin,
+    InputMatrixMixin,
+    HybridBMixin,
+    ResCompCore):
+
+    def __init__(self):
+        ResCompCore.__init__(self)
+        ActFunctionMixin.__init__(self)
+        NetworkMixin.__init__(self)
+        OutputFitMixin.__init__(self)
+        RgenToRprocMixin.__init__(self)
+        NoRprocToRfitMixin.__init__(self)
+        ScalerXToXProcMixin.__init__(self)
+        InputMatrixMixin.__init__(self)
+        HybridBMixin.__init__(self)
+        RToRgenMixin.__init__(self)
+
+    def build(self,
+
+              # BASIC:
+              x_dim: int,
+              r_dim: int = 500,
+              leak_factor: int = 0.0,
+              node_bias_opt: str = "random_bias",
+              node_bias_seed: int | None = None,
+              node_bias_scale: float = 0.1,
+              default_r: np.ndarray | None = None,
+              x_train_noise_scale: float | None = None,
+              x_train_noise_seed: int | None = None,
+
+              #ACT FCT:
+              act_fct_opt: str = "tanh",
+
+              # Reservoir Network:
+              n_type_opt: str = "erdos_renyi",
+              n_rad: float = 0.1,
+              n_avg_deg: float = 6.0,
+              network_creation_attempts: int = 10,
+              network_creation_seed: int | None = None,
+
+              # R to Rgen:
+              r_to_rgen_opt: str = "linear_r",
+
+              # Output fit / Training:
+              reg_param: float = 1e-8,
+              ridge_regression_opt: str = "no_bias",
+
+              # X to Xproc Standard Scaler:
+              scale_input_bool: bool = False,
+
+              # Input Matrix:
+              w_in_opt: str = "random_sparse",
+              w_in_scale: float = 1.0,
+              w_in_seed: int | None = None,
+
+              # Rgen to Rproc:
+              scale_rgen_bool: bool = False,
+              perform_pca_bool: bool = False,
+              pca_components: int | None = None,
+
+              # Y to Xnext Standard Scaler:
+              model: Callable[[np.ndarray], np.ndarray] = lambda x: x,
+              ):
+
+        # Basic Rescomp build:
+        ResCompCore.subbuild(
+            self,
+            x_dim=x_dim,
+            r_dim=r_dim,
+            leak_factor=leak_factor,
+            node_bias_opt=node_bias_opt,
+            node_bias_seed=node_bias_seed,
+            node_bias_scale=node_bias_scale,
+            default_r=default_r,
+            x_train_noise_scale=x_train_noise_scale,
+            x_train_noise_seed=x_train_noise_seed,
+        )
+
+        # Scaler X to XProc:
+        ScalerXToXProcMixin.subbuild(
+            self,
+            scale_input_bool=scale_input_bool)
+
+        # R to Rgen build:
+        RToRgenMixin.subbuild(
+            self, r_to_rgen_opt=r_to_rgen_opt)
+
+        # Rgen to Rproc:
+        RgenToRprocMixin.subbuild(
+            self,
+            scale_rgen_bool=scale_rgen_bool,
+            perform_pca_bool=perform_pca_bool,
+            pca_components=pca_components,
+        )
+
+        # Rproc to Rfit:
+        NoRprocToRfitMixin.subbuild(self)
+
+        # Y to Xnext:
+        HybridBMixin.subbuild(
+            self,
+            model=model)
+
+        # Input Matrix build:
+        InputMatrixMixin.subbuild(
+            self,
+            w_in_opt=w_in_opt,
+            w_in_scale=w_in_scale,
+            w_in_seed=w_in_seed
+            )
+
+        # Reservoir Network build:
+        NetworkMixin.subbuild(
+            self,
+            n_type_opt=n_type_opt,
+            n_rad=n_rad,
+            n_avg_deg=n_avg_deg,
+            network_creation_attempts=network_creation_attempts,
+            network_creation_seed=network_creation_seed,
+        )
+
+        # Activation Function build:
+        ActFunctionMixin.subbuild(
+            self,
+            act_fct_opt=act_fct_opt)
+
+        # Res output fit:
+        OutputFitMixin.subbuild(
+            self,
+            reg_param=reg_param,
+            ridge_regression_opt=ridge_regression_opt)
+
 
 ESN_DICT = {"ESN": ESN,
             "ESNHybrid": ESNHybrid}
