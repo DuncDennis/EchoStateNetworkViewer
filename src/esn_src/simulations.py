@@ -1243,17 +1243,16 @@ class Lorenz96(SimBaseRungeKutta):
             : (dx_0/dt, dx_1/dt, ..) corresponding to input x.
 
         """
-        system_dimension = x.shape[0]
-        derivative = np.zeros(system_dimension)
-        # Periodic Boundary Conditions for the 3 edge cases i=1,2,system_dimension
-        derivative[0] = (x[1] - x[system_dimension - 2]) * x[system_dimension - 1] - x[0]
-        derivative[1] = (x[2] - x[system_dimension - 1]) * x[0] - x[1]
-        derivative[system_dimension - 1] = (x[0] - x[system_dimension - 3]) * x[system_dimension - 2] - x[
-            system_dimension - 1
+        derivative = np.zeros(self.sys_dim)
+        # Periodic Boundary Conditions for the 3 edge cases i=1,2,self.sys_dim
+        derivative[0] = (x[1] - x[self.sys_dim - 2]) * x[self.sys_dim - 1] - x[0]
+        derivative[1] = (x[2] - x[self.sys_dim - 1]) * x[0] - x[1]
+        derivative[self.sys_dim - 1] = (x[0] - x[self.sys_dim - 3]) * x[self.sys_dim - 2] - x[
+            self.sys_dim - 1
         ]
 
         # TODO: Rewrite using numpy vectorization to make faster
-        for i in range(2, system_dimension - 1):
+        for i in range(2, self.sys_dim - 1):
             derivative[i] = (x[i + 1] - x[i - 2]) * x[i - 1] - x[i]
 
         derivative = derivative + self.force
