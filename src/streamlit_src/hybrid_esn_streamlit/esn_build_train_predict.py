@@ -11,6 +11,8 @@ import streamlit as st
 
 import src.esn_src.utilities as utilities
 import src.esn_src.esn_new_develop as esn
+import src.streamlit_src.app_fragments.streamlit_utilities as st_utils
+import src.streamlit_src.app_fragments.system_simulation as syssim
 
 def esn_hash(obj):
     items = sorted(obj.__dict__.items(), key=lambda it: it[0])
@@ -395,7 +397,7 @@ def st_basic_esn_build(key: str | None = None) -> dict[str, Any]:
 
     basic_build_args["r_to_rgen_opt"] = st.selectbox(label_mapper['r_to_rgen_opt'],
                                                       R_TO_RGEN_TYPES,
-                                                      index=2,
+                                                      index=0,
                                                       help=label_mapper_help["r_to_rgen_opt"],
                                                       key=f"{key}__st_basic_esn_build__rrgen")
 
@@ -555,6 +557,49 @@ def st_network_build_args(key: str | None = None) -> dict[str, object]:
 
 
     return network_build_args
+
+
+def st_hybrid_build_args(system_name: str,
+                         system_parameters: dict[str, Any],
+                         key: str | None = None) -> dict[str, object]:
+    """Streamlit elements to specify the Settings for ESNHybrid.
+
+    Args:
+        system_name: The name of the system, which must be part of syssim.SYSTEM_DICT.
+        system_parameters: The system parameter dictionary used to simulate the data.
+        key: Provide a unique key if this streamlit element is used multiple times.
+
+    Returns:
+        A dictionary containing the hybrid esn build args.
+    """
+    hybrid_build_args = {}
+
+    # label_mapper = {"scale_input_model_bool": "Scale input model layer",
+    #                 "scale_output_model_bool": "Scale output model layer",
+    #                 "out_model_is_inp_bool": "Same output as input model"
+    #                 }
+
+    add_input_model = st.checkbox("Add input model", value=False,
+                                  key=f"{key}__st_hybrid_build_args__inputcheck")
+    if add_input_model:
+        input_model, input_system_parameters = syssim.st_get_model_system(
+            system_name, system_parameters, key=f"{key}__st_hybrid_build_args__input")
+
+        hybrid_build_args["input_model"] = input_model
+    else:
+        hybrid_build_args["input_model"] = None
+
+    st_utils.st_line()
+    add_output_model = st.checkbox("Add output model", value=False,
+                                  key=f"{key}__st_hybrid_build_args__outcheck")
+    if add_output_model:
+        output_model, output_system_parameters = syssim.st_get_model_system(
+            system_name, system_parameters, key=f"{key}__st_hybrid_build_args__out")
+        hybrid_build_args["output_model"] = output_model
+    else:
+        hybrid_build_args["output_model"] = None
+
+    return hybrid_build_args
 
 
 @st.cache(hash_funcs=ESN_HASH_FUNC,

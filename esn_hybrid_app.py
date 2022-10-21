@@ -120,7 +120,13 @@ if __name__ == '__main__':
                     basic_build_args = esn.st_basic_esn_build()
                 with st.expander("Network parameters: "):
                     build_args = basic_build_args | esn.st_network_build_args()
-
+                with st.expander("Hybrid model parameters: "):
+                    if data_source == "Simulate":
+                        build_args = build_args | esn.st_hybrid_build_args(
+                            system_name=data_name,
+                            system_parameters=data_parameters)
+                    else:
+                        st.info("This is only available for simulated data. ")
                 x_dim = preproc_data.shape[1]
                 esn_obj = esn.build(esn_type,
                                     seed=seed,
