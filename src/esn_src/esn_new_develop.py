@@ -495,6 +495,18 @@ class ResCompCore(ABC):
         self.set_x_train_noise(x_train_noise_scale=x_train_noise_scale,
                                x_train_noise_seed=x_train_noise_seed)
 
+    def get_dimensions(self) -> dict[str, int]:
+        """Function to return all the layer dimensions: """
+        out = {"x_dim": self.x_dim,
+               "xproc_dim": self.xproc_dim,
+               "r_dim": self.r_dim,
+               "rgen_dim": self.rgen_dim,
+               "rproc_dim": self.rproc_dim,
+               "rfit_dim": self.rfit_dim,
+               "y_dim": self.y_dim,
+               }
+        return out
+
 class ActFunctionMixin:
     """Set the standard activation functions. """
 
@@ -669,6 +681,10 @@ class NetworkMixin:
                 raise Exception("Network creation during ESN init failed %d times"
                                 % network_creation_attempts)
 
+    def get_network(self) -> np.ndarray:
+        """Return the network as a np.ndarray."""
+        return self._network.toarray()
+
 class OutputFitMixin:
     """Standard Ridge Regression (RR) output fit from reservoir to output. """
     def __init__(self) -> None:
@@ -724,6 +740,10 @@ class OutputFitMixin:
                              f"Must be no_bias or bias.")
         else:
             self._ridge_regression_opt = ridge_regression_opt
+
+    def get_w_out(self) -> np.ndarray:
+        "Return the output matrix w_out. "
+        return self.w_out.copy()
 
 class NoRgenToRprocMixin:
     """Very simple rgen_to_rproc_fct: No processing of rgen states."""
