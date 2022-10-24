@@ -14,7 +14,7 @@ import numpy as np
 
 
 def _runge_kutta(f: Callable[[np.ndarray], np.ndarray], dt: float, x: np.ndarray) -> np.ndarray:
-    """Simulate one step for ODEs of the form dx/dt = f(x(t)).
+    """Simulate one step for ODEs of the form dx/dt = f(x(t)) using Runge-Kutta.
 
     Args:
         f: function used to calculate the time derivative at point x.
@@ -30,6 +30,23 @@ def _runge_kutta(f: Callable[[np.ndarray], np.ndarray], dt: float, x: np.ndarray
     k3: np.ndarray = dt * f(x + k2 / 2)
     k4: np.ndarray = dt * f(x + k3)
     next_step: np.ndarray = x + 1.0 / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+    return next_step
+
+
+def _forward_euler(f: Callable[[np.ndarray], np.ndarray], dt: float, x: np.ndarray) -> np.ndarray:
+    """Simulate one step for ODEs of the form dx/dt = f(x(t)) using the forward euler.
+
+    Args:
+        f: function used to calculate the time derivative at point x.
+        dt: time step size.
+        x: d-dim position at time t.
+
+    Returns:
+       d-dim position at time t+dt.
+
+    """
+    k1: np.ndarray = dt * f(x)
+    next_step: np.ndarray = x + k1
     return next_step
 
 
