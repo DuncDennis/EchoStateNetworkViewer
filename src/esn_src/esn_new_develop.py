@@ -1067,7 +1067,13 @@ class HybridMixin:
 
     def x_to_xproc_fct(self, x: np.ndarray) -> np.ndarray:
         """Scale and shift + input model."""
-        return self._x_to_xproc_fct(x)
+        try:
+            return self._x_to_xproc_fct(x)
+        except ValueError as e:
+            print(f"OVERFLOW ERROR: {e}")
+            out = np.empty(self.xproc_dim)
+            out[:] = np.nan
+            return out
 
     def set_x_to_xproc_fct(self, train: np.ndarray):
         """Scale and shift + input model."""
