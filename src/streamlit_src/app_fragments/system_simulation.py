@@ -102,8 +102,8 @@ def st_select_system(systems_sub_section: tuple[str, ...] | None = None,
 
 
 def st_get_model_system(system_name: str, system_parameters: dict[str, Any],
-                        key: str | None = None
-                        ) -> tuple[Callable[[np.ndarray], np.ndarray], dict[str, Any]]:
+                        key: str | None = None,
+                        ) -> tuple[Callable[[np.ndarray], np.ndarray], dict[str, Any], int]:
     """Get an app-section to modify the system parameters of the system given by system_name.
 
     Args:
@@ -166,9 +166,24 @@ def st_get_model_system(system_name: str, system_parameters: dict[str, Any],
 
         modified_system_parameters[param_name] = new_val
 
-    model_func = SYSTEM_DICT[system_name](**modified_system_parameters).iterate
+    sys_obj = SYSTEM_DICT[system_name](**modified_system_parameters)
+    sys_dim = sys_obj.sys_dim
 
-    return model_func, modified_system_parameters
+    if "flow" in dir(sys_obj):
+        func_type = st.selectbox("Function type" , ["normal_iterate", "forward_euler", "flow"],
+                                 key=f"{key}__st_get_model_system__functype")
+
+        if func_type == "normal_iterate":
+            model_func = sys_obj.iterate
+        elif func_type == "forward_euler":
+            dt = modified_system_parameters["dt"]
+            model_func = lambda x: sims._forward_euler(sys_obj.flow, dt=dt, x=x)
+        elif func_type == "flow":
+            model_func = sys_obj.flow
+    else:
+        model_func = sys_obj.iterate
+
+    return model_func, modified_system_parameters, sys_dim
 
 
 def st_select_time_steps(default_time_steps: int = 10000,
