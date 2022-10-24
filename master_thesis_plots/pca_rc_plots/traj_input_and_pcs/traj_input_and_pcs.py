@@ -65,8 +65,10 @@ res_states = more_out["r"]
 pca = PCA()
 res_pca_states = pca.fit_transform(res_states)
 
+r_input = train_data[train_sync_steps:-1, :]
+
 pca_input = PCA()
-true_pca = pca_input.fit_transform(true)
+true_pca = pca_input.fit_transform(r_input)
 
 
 color = "black"
@@ -77,10 +79,10 @@ width = 500
 
 # Input:
 name = "input"
-# x = true[:, 0].tolist()
-# y = true[:, 1].tolist()
-# z = true[:, 2].tolist()
-# camera = dict(eye=dict(x=1.25, y=-1.25, z=1.25))
+x = r_input[:, 0].tolist()
+y = r_input[:, 1].tolist()
+z = r_input[:, 2].tolist()
+camera = dict(eye=dict(x=1.25, y=-1.25, z=1.25))
 
 # PCA transformed input:
 # name = "pca_input"
@@ -97,12 +99,12 @@ name = "input"
 #               up=dict(x=0, y=1, z=0))
 
 # PCA reservoir 3-4-5:
-name = "pca_res_later"
-x = res_pca_states[:, 3].tolist()
-y = res_pca_states[:, 4].tolist()
-z = res_pca_states[:, 5].tolist()
-camera = dict(eye=dict(x=0.8, y=0.9, z=1.25),
-              up=dict(x=0, y=1, z=0))
+# name = "pca_res_later"
+# x = res_pca_states[:, 3].tolist()
+# y = res_pca_states[:, 4].tolist()
+# z = res_pca_states[:, 5].tolist()
+# camera = dict(eye=dict(x=0.8, y=0.9, z=1.25),
+#               up=dict(x=0, y=1, z=0))
 
 fig = go.Figure()
 fig.add_trace(
@@ -138,7 +140,7 @@ fig.update_layout(
 
 # SAVE
 # fig.write_image("intro_expl_var_w_error.pdf", scale=3)
-file_name = f"intro_pca_traj_{name}.png"
+file_name = f"traj_input_and_pcs__{name}.png"
 # file_name = f"intro_pca_traj_{name}.pdf"
 fig.write_image(file_name, scale=3)
 

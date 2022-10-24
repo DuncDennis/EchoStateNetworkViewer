@@ -1,4 +1,7 @@
-"""Create the PCA intro plot. """
+"""Create Explained variance of pca states plot with error band.
+
+NOT USED.
+"""
 import numpy as np
 from sklearn.decomposition import PCA
 import plotly.graph_objects as go
@@ -192,5 +195,5 @@ fig.update_layout(
 
 # SAVE
 # fig.write_image("intro_expl_var_w_error.pdf", scale=3)
-fig.write_image("intro_expl_var_w_error.png", scale=3)
+fig.write_image("expl_var_w_error.png", scale=3)
 

@@ -458,3 +458,45 @@ def distance_in_std(x: np.ndarray,
     # remove nan:
     diff = diff[np.isfinite(diff)]
     return np.linalg.norm(diff)
+
+
+def cross_correlate(x: np.ndarray,
+                    y: np.ndarray,
+                    time_delay: int = 0
+                    ) -> np.ndarray:
+    """Correlate the x with the y and add a time_delay.
+
+    Correlate every r_gen dimension with every input dimension.
+
+    Args:
+        x: The first time series of shape (time steps, x_dim).
+        y: The second time series of shape (time steps, y_dim).
+        time_delay: An optional time delay to apply y before correlating. A positive time
+                    delay correlates y with past input values x, a negative correlates y
+                    with future input values x.
+
+    Returns:
+        The correlation matrix of shape (y_dim, x_dim).
+    """
+    if time_delay == 0:
+        y_slice = y
+        x_slice = x
+    else:
+        if time_delay > 0:
+            y_slice = y[time_delay:, :]
+            x_slice = x[:-time_delay, :]
+        elif time_delay < 0:
+            y_slice = y[:time_delay, :]
+            x_slice = x[-time_delay:, :]
+        else:
+            raise ValueError
+
+    r_gen_dim = y_slice.shape[1]
+    inp_dim = x_slice.shape[1]
+    correlation = np.zeros((r_gen_dim, inp_dim))
+    for i_r in range(r_gen_dim):
+        for i_inp in range(inp_dim):
+            correlation[i_r, i_inp] = \
+                np.corrcoef(y_slice[:, i_r], x_slice[:, i_inp])[0, 1]
+
+    return correlation

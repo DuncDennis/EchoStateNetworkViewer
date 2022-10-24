@@ -1,4 +1,4 @@
-"""Create the PCA intro plot. """
+"""Create an explained variance with error band plot and sweep some parameters. """
 import numpy as np
 from sklearn.decomposition import PCA
 import plotly.graph_objects as go
@@ -65,20 +65,20 @@ rng = np.random.default_rng(seed)
 seeds = rng.integers(0, 10000000, size=n_ens)
 
 # sweep:
-# sweep_key = "n_rad"
-# sweep_name = r"\rho"
-# sweep_values = [0.0, 0.01, 0.1, 1]
-# f_name = "spectralradius"
+sweep_key = "n_rad"
+sweep_name = r"\rho"
+sweep_values = [0.0, 0.01, 0.1, 1]
+f_name = "spectralradius"
 
 # sweep_key = "r_dim"
 # sweep_name = r"r_\text{dim}"
 # sweep_values = [50, 100, 150, 200]
 # f_name = "rdim"
 
-sweep_key = "x_train_noise_scale"
-sweep_name = r"\text{Input noise scale}"
-sweep_values = [0.0, 0.001, 0.01, 0.1, 1.0]
-f_name = "noise"
+# sweep_key = "x_train_noise_scale"
+# sweep_name = r"\text{Input noise scale}"
+# sweep_values = [0.0, 0.001, 0.01, 0.1, 1.0]
+# f_name = "noise"
 
 # sweep_key = "act_fct_opt"
 # sweep_name = r"\text{Activation fct.}"
