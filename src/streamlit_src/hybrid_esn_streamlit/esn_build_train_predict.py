@@ -582,10 +582,14 @@ def st_hybrid_build_args(system_name: str,
     add_input_model = st.checkbox("Add input model", value=False,
                                   key=f"{key}__st_hybrid_build_args__inputcheck")
     if add_input_model:
-        input_model, input_system_parameters = syssim.st_get_model_system(
+        input_model, input_system_parameters, input_sys_dim = syssim.st_get_model_system(
             system_name, system_parameters, key=f"{key}__st_hybrid_build_args__input")
 
-        hybrid_build_args["input_model"] = input_model
+        dims = st_utils.st_dimension_selection_multiple(input_sys_dim,
+                                                 default_select_all_bool=True,
+                                                 key=f"{key}__st_hybrid_build_args__idim")
+
+        hybrid_build_args["input_model"] = lambda x: input_model(x)[dims]
     else:
         hybrid_build_args["input_model"] = None
 
@@ -593,9 +597,15 @@ def st_hybrid_build_args(system_name: str,
     add_output_model = st.checkbox("Add output model", value=False,
                                   key=f"{key}__st_hybrid_build_args__outcheck")
     if add_output_model:
-        output_model, output_system_parameters = syssim.st_get_model_system(
+        output_model, output_system_parameters, output_sys_dim = syssim.st_get_model_system(
             system_name, system_parameters, key=f"{key}__st_hybrid_build_args__out")
-        hybrid_build_args["output_model"] = output_model
+        dims = st_utils.st_dimension_selection_multiple(output_sys_dim,
+                                                        default_select_all_bool=True,
+                                                        key=f"{key}__st_hybrid_build_args__odim")
+        # st.write(dims)
+        # st.write(output_system_parameters)
+
+        hybrid_build_args["output_model"] = lambda x: output_model(x)[dims]
     else:
         hybrid_build_args["output_model"] = None
 
