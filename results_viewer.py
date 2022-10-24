@@ -24,7 +24,7 @@ def modify_fig(fig):
     ytick0 = 0
     ydtick = 5
     xrange = [0, 1250]
-    yrange = [0, 15]
+    yrange = None # [0, 15]
 
     font_size = 15
     legend_font_size = 11
@@ -139,7 +139,7 @@ if filtered_df is not None:
     parameter_cols = [x for x in filtered_df.columns if x.startswith("P ")]
 
     # Optionally remove all cols that only have one unique value:
-    if st.checkbox("Remove all non-sweep variables"):
+    if st.checkbox("Remove all non-sweep variables", value=True):
         parameter_cols_multiple_vals = []
         for col in parameter_cols:
             if len(filtered_df[col].unique()) == 1:
@@ -215,5 +215,5 @@ if filtered_df is not None:
         fig.update_xaxes(title=sweep_param)
         fig.update_layout(title=avg_mode)
 
-        modify_fig(fig)
+        # modify_fig(fig)
         st.plotly_chart(fig)
