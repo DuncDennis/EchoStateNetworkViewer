@@ -12,6 +12,7 @@ import src.esn_src.measures as meas
 
 # Create data:
 sys_obj = sims.Lorenz63()
+# sys_obj = sims.LinearSystem()
 ts_creation_args = {"t_train_disc": 1000,
                     "t_train_sync": 100,
                     "t_train": 3000,

@@ -20,7 +20,23 @@ def hex_to_rgba(h, alpha):
     return "rgba" + str(tuple([int(h.lstrip('#')[i:i+2], 16) for i in (0, 2, 4)] + [alpha]))
 
 # Create data:
-sys_obj = sims.Lorenz63()
+
+sys_obj_dict = {
+    "Lorenz63": sims.Lorenz63(),
+    "Roessler": sims.Roessler(),
+    "LinearSystem": sims.LinearSystem(),
+    "Logistic": sims.Logistic(),
+    "LotkaVolterra": sims.LotkaVolterra(),
+    "Henon": sims.Henon(),
+
+}
+
+# sys_obj_dict = {
+#     "dt = 0.01": sims.Lorenz63(dt=0.01),
+#     "dt = 0.05": sims.Lorenz63(dt=0.05),
+#     "dt = 0.1": sims.Lorenz63(dt=0.1),
+# }
+
 ts_creation_args = {"t_train_disc": 1000,
                     "t_train_sync": 100,
                     "t_train": 5000,
@@ -33,13 +49,19 @@ ts_creation_args = {"t_train_disc": 1000,
                     }
 n_train = ts_creation_args["n_train_sects"]
 train_sync_steps = ts_creation_args["t_train_sync"]
-train_data_list, validate_data_list_of_lists = sweep.time_series_creator(sys_obj,
-                                                                         **ts_creation_args)
+
+train_validate_dict = {}
+for k, sys_obj in sys_obj_dict.items():
+    train_data_list, validate_data_list_of_lists = sweep.time_series_creator(sys_obj,
+                                                                             **ts_creation_args)
+    train_validate_dict[k] = (train_data_list, validate_data_list_of_lists)
+#     train_data_list, validate_data_list_of_lists = sweep.time_series_creator(sys_obj,
+#                                                                              **ts_creation_args)
 
 # Build RC args:
 build_args = {
-    "x_dim": 3,
-    "r_dim": 100,
+    "x_dim": 1,
+    "r_dim": 300,
     "n_rad": 0.4,
     "n_avg_deg": 3.0,
     "n_type_opt": "erdos_renyi",
@@ -56,7 +78,7 @@ build_args = {
 }
 
 # Ensemble size:
-n_ens = 10
+n_ens = 3
 
 # seeds:
 seed = 1
@@ -64,10 +86,10 @@ rng = np.random.default_rng(seed)
 seeds = rng.integers(0, 10000000, size=n_ens)
 
 # sweep:
-sweep_key = "n_rad"
-sweep_name = r"\rho"
-sweep_values = [0.0, 0.01, 0.1, 1]
-f_name = "spectralradius"
+# sweep_key = "n_rad"
+# sweep_name = r"\rho"
+# sweep_values = [0.0, 0.01, 0.1, 1]
+# f_name = "spectralradius"
 
 # sweep_key = "r_dim"
 # sweep_name = r"r_\text{dim}"
@@ -86,10 +108,14 @@ f_name = "spectralradius"
 
 results_sweep = []
 
-for i_sweep, sweep_value in enumerate(sweep_values):
-    build_args[sweep_key] = sweep_value
+for i_sweep, (sys_name, (train_data_list, validate_data_list_of_lists)) in enumerate(train_validate_dict.items()):
+
+    # remove dimensions:
+    # train_data_list = [x[:, 0:1] for x in train_data_list]
 
     # Do experiment:
+    build_args["x_dim"] = train_data_list[0].shape[1]
+
     for i_ens in range(n_ens):
         print(i_ens)
         # Build rc:
@@ -99,7 +125,6 @@ for i_sweep, sweep_value in enumerate(sweep_values):
         for i_train in range(n_train):
             # Train RC:
             train_data = train_data_list[i_train]
-            # train_data = train_data[:, 0:1]
             _, _, more_out = esn_obj.train(train_data, sync_steps=train_sync_steps, more_out_bool=True)
             res_states = more_out["r"]
             pca = PCA()
@@ -143,7 +168,7 @@ font_size = 15
 legend_font_size = 15
 font_family = "Times New Roman"
 
-for i_sweep, sweep_value in enumerate(sweep_values):
+for i_sweep, sweep_value in enumerate(sys_obj_dict.keys()):
     expl_var_ratio_results = results_sweep[i_sweep]
     n_components = expl_var_ratio_results[0, 0, :].size
     x = np.arange(0, n_components)
@@ -161,7 +186,7 @@ for i_sweep, sweep_value in enumerate(sweep_values):
     rgb_line = hex_to_rgba(hex_color, 1.0)
     rgb_fill = hex_to_rgba(hex_color, 0.2)
 
-    trace_name = fr"${sweep_name} = {sweep_value}$"
+    trace_name = fr"${sweep_value}$"
 
     fig.add_trace(
         go.Scatter(x=x, y=y, showlegend=True, name=trace_name,
@@ -240,5 +265,5 @@ fig.update_layout(
 
 # SAVE
 # fig.write_image("intro_expl_var_w_error.pdf", scale=3)
-fig.write_image(f"expl_var_w_error_sweep__{f_name}.png", scale=3)
+fig.write_image(f"expl_var_w_error_system_sweep.png", scale=3)
 
