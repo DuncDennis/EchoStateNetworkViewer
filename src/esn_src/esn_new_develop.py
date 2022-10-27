@@ -689,7 +689,7 @@ class OutputFitMixin:
     """Standard Ridge Regression (RR) output fit from reservoir to output. """
     def __init__(self) -> None:
         self.reg_param: float | None = None  # the regularization parameter for RR.
-        self.w_out: np.ndarray | None = None
+        self.w_out: np.ndarray | None = None  # Shape: (self.y_dim, self.rfit_dim).
         self._r_fit_to_y_fct: Callable[[np.ndarray], np.ndarray] | None = None
         self._ridge_regression_opt: str | None = None
 
@@ -742,7 +742,7 @@ class OutputFitMixin:
             self._ridge_regression_opt = ridge_regression_opt
 
     def get_w_out(self) -> np.ndarray:
-        "Return the output matrix w_out. "
+        "Return the output matrix w_out of shape: (self.y_dim, self.rfit_dim). "
         return self.w_out.copy()
 
 class NoRgenToRprocMixin:
