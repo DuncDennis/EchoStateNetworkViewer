@@ -23,7 +23,8 @@ def hex_to_rgba(h, alpha):
 
 # Create data:
 # sys_obj = sims.Lorenz63()
-sys_obj = sims.Logistic()
+# sys_obj = sims.Logistic()
+sys_obj = sims.Henon()
 # sys_obj = sims.ComplexButterfly()
 # sys_obj = sims.LinearSystem()
 
@@ -59,14 +60,14 @@ build_args = {
     "w_in_scale": 1.0,
     "x_train_noise_scale": 0.0,
     "reg_param": 1e-15,
-    "ridge_regression_opt": "no_bias",
+    # "ridge_regression_opt": "no_bias",
     "ridge_regression_opt": "bias",
     "scale_input_bool": False,
-    "perform_pca_bool": True,
+    # "perform_pca_bool": True,
 }
 
 # N ens:
-n_ens = 15
+n_ens = 5
 
 # seeds:
 seed = 1

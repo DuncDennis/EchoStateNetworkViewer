@@ -40,7 +40,7 @@ train_data_list, validate_data_list_of_lists = sweep.time_series_creator(sys_obj
 build_args = {
     "x_dim": 3,
     "r_dim": 100,
-    "n_rad": 0.4,
+    "n_rad": 0.9,
     "n_avg_deg": 3.0,
     "n_type_opt": "erdos_renyi",
     "r_to_rgen_opt": "linear_r",
@@ -64,15 +64,15 @@ rng = np.random.default_rng(seed)
 seeds = rng.integers(0, 10000000, size=n_ens)
 
 # sweep:
-sweep_key = "n_rad"
-sweep_name = r"\rho"
-sweep_values = [0.0, 0.01, 0.1, 1]
-f_name = "spectralradius"
+# sweep_key = "n_rad"
+# sweep_name = r"\rho"
+# sweep_values = [0.0, 0.01, 0.1, 1]
+# f_name = "spectralradius"
 
-# sweep_key = "r_dim"
-# sweep_name = r"r_\text{dim}"
-# sweep_values = [50, 100, 150, 200]
-# f_name = "rdim"
+sweep_key = "r_dim"
+sweep_name = r"r_\text{dim}"
+sweep_values = [10, 50, 100, 150, 200, 500, 800]
+f_name = "rdim"
 
 # sweep_key = "x_train_noise_scale"
 # sweep_name = r"\text{Input noise scale}"
@@ -104,7 +104,8 @@ for i_sweep, sweep_value in enumerate(sweep_values):
             res_states = more_out["r"]
             pca = PCA()
             res_pca_states = pca.fit_transform(res_states)
-            expl_var_ratio = pca.explained_variance_ratio_
+            # expl_var_ratio = pca.explained_variance_ratio_
+            expl_var_ratio = pca.explained_variance_
             if i_train == 0 and i_ens == 0:
                 # explained variances:
                 n_components = expl_var_ratio.size
