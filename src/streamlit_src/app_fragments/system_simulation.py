@@ -80,25 +80,25 @@ def st_select_system(systems_sub_section: tuple[str, ...] | None = None,
             system_parameters = default_parameters[system_name]
         else:
             raise ValueError(f"The system specified in default_parameters is not accounted for.")
-
+    system_parameters_out = system_parameters.copy()
     with st.expander("System parameters: "):
         for param_name, val in system_parameters.items():
 
             val_type = type(val)
             if val_type == float:
-                system_parameters[param_name] = st.number_input(param_name, value=float(val),
-                                                                step=0.01, format="%f",
-                                                                key=f"{key}__st_select_system__{param_name}")
+                system_parameters_out[param_name] = st.number_input(param_name, value=float(val),
+                                                                    step=0.01, format="%f",
+                                                                    key=f"{key}__st_select_system__{param_name}")
             elif val_type == int:
-                system_parameters[param_name] = int(st.number_input(param_name, value=int(val),
-                                                                    key=f"{key}__st_select_system__{param_name}"))
+                system_parameters_out[param_name] = int(st.number_input(param_name, value=int(val),
+                                                                        key=f"{key}__st_select_system__{param_name}"))
             else:
                 st.write(param_name, val)
                 # TODO: maybe make nicer?
                 # raise TypeError("Other default keyword arguments than float and int are currently"
                 #                 "not supported.")
 
-    return system_name, system_parameters
+    return system_name, system_parameters_out
 
 
 def st_get_model_system(system_name: str, system_parameters: dict[str, Any],
