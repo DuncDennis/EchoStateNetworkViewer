@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import streamlit as st
+from PIL import Image
 
 import plotly.graph_objects as go
 import pandas as pd
@@ -9,11 +10,22 @@ import numpy as np
 import src.streamlit_src.app_fragments.streamlit_utilities as utils
 
 # Def to modify the figure:
-def modify_fig(fig):
-    # yaxis_title = r'$\text{Valid Time }(\lambda_\mathrm{max} t_v)$'
-    yaxis_title = r'Valid Time'
-    xaxis_title = "r_dim"
+def nice_fig(fig):
+    yaxis_title = r'$\text{Valid Time }(\lambda_\mathrm{max} t_v)$'
+    # yaxis_title = r'Valid Time'
+    # xaxis_title = "r_dim"
+    xaxis_title = r"$\text{Reservoir dimension}$"
     title = None
+
+    new_legend = " "
+    legend_order = ["Model only",
+                    "Reservoir only",
+                    "Input hybrid",
+                    "Output hybrid",
+                    "Full hybrid",
+                    ]
+
+
 
     height = 500
     width = int(1.4 * height)
@@ -24,7 +36,11 @@ def modify_fig(fig):
     ytick0 = 0
     ydtick = 5
     xrange = [0, 1250]
+    xrange = [0, 1050]
+    # xrange = [0, 1250]
     yrange = None # [0, 15]
+    yrange = [0, 15.5]
+    yrange = [0, 13.5]
 
     font_size = 15
     legend_font_size = 11
@@ -61,8 +77,42 @@ def modify_fig(fig):
             xanchor="left",
             # x=0.01,
             font=dict(size=legend_font_size))
-
     )
+
+    fig.write_image("test_fig.png", scale=3)
+    # fig.write_image("test_fig.pdf")
+    image = Image.open('test_fig.png')
+    st.image(image)
+
+def transform_func(input_str: str) -> str:
+    if "full" in input_str:
+        out = "Full hybrid"
+    elif "input" in input_str:
+        out = "Input hybrid"
+    elif "output" in input_str:
+        out = "Output hybrid"
+    elif "no" in input_str:
+        out = "Reservoir only"
+    elif "model" in input_str:
+        out = "Model only"
+    else:
+        raise Exception(f"Not implemented: {input_str}")
+    return out
+
+def format_name(non_sweep_params: list, value_combination: list) -> str:
+    # name = str(list(zip(non_sweep_params, value_combination)))
+    name = ""
+    for param_name, param_value in zip(non_sweep_params, value_combination):
+        param_name_stripped = param_name.split()[-1]
+        # name += f"{param_name_stripped}: {param_value}, "
+
+        # Transform model type:
+        param_value = transform_func(param_value)
+
+        name += f"{param_value}"
+
+
+    return name
 
 ### statistical functions:
 def mean(x):
@@ -198,7 +248,8 @@ if filtered_df is not None:
                     else:
                         condition_df = condition_df & condition_series
                 sub_df = df_agg[condition_df]
-                name = str(list(zip(non_sweep_params, value_combination)))
+                name = format_name(non_sweep_params, value_combination)
+                # name = str(list(zip(non_sweep_params, value_combination)))
             else:
                 sub_df = df_agg
                 name=None
@@ -217,3 +268,6 @@ if filtered_df is not None:
 
         # modify_fig(fig)
         st.plotly_chart(fig)
+
+        if st.checkbox("Plot nicely: ", key=metric):
+            nice_fig(fig)
