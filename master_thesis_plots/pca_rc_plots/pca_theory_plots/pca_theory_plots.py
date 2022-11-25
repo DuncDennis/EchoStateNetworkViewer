@@ -128,18 +128,24 @@ fig.update_layout(
 )
 
 
-# add 3d points (real)
 fig.add_trace(
     go.Scatter3d(x=R[:, 0], y=R[:, 1], z=R[:, 2],
                  mode='markers',
                  marker=dict(
-                     size=0.9,
                      color="red",
-                     opacity=0.7
+                     # size=0.9,
+                     # opacity=0.7,
+                     size=1.5,
+                     opacity=0.4,
+                     line=dict(
+                         color="black",
+                         width=0.5,
+                     )
                  ),
                  name="Real data"
                  )
 )
+# add 3d points (real)
 
 height = 300
 # width = int(1.4 * height)

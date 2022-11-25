@@ -16,24 +16,25 @@ reg_param = 10 ** (log_reg_param)
 seed = 1
 
 # Parameters
-n = int(st.number_input("nsample", value=100))
+n = int(st.number_input("nsample", value=300))
 
 # get R:
-data_mean = 20000
+data_mean = 10
 rng = np.random.default_rng(seed=seed)
 R = rng.normal(loc=data_mean, scale=5, size=n)[np.newaxis, :]
 
-if st.checkbox("Center R", value=False):
+center_r = st.checkbox("Center R", value=False)
+if center_r:
     R = R - np.mean(R, axis=1)
 
 # mean of R:
 mean_r = np.mean(R, axis=1)
 
 # get Y:
-true_intersect = 9000
-true_sloap = 10
+true_intersect = 10
+true_sloap = 0.5
 Y = true_sloap * R + true_intersect
-error = rng.normal(size=(1, n))
+error = rng.normal(size=(1, n))*1.5
 Y += error
 Y = Y
 
@@ -48,12 +49,18 @@ st.write("Mean of y: ", mean_y)
 
 #### Fit with "traditional" formula: ###
 
-# Perform normal Linear fit (i.e. reg_param = 0).
-rfit_array = utilities.vectorize(utilities.add_one, (R.T,)).T
-# W_lr = np.linalg.inv(rfit_array.T @ rfit_array) @ rfit_array.T @ Y
-W_lr = Y @ rfit_array.T @ np.linalg.inv(rfit_array @ rfit_array.T)
-b_lr = W_lr[0, -1]
-W_lr_out = W_lr[:, :1]
+# # Perform normal Linear fit (i.e. reg_param = 0).
+# rfit_array = utilities.vectorize(utilities.add_one, (R.T,)).T
+# # W_lr = np.linalg.inv(rfit_array.T @ rfit_array) @ rfit_array.T @ Y
+# W_lr = Y @ rfit_array.T @ np.linalg.inv(rfit_array @ rfit_array.T)
+# b_lr = W_lr[0, -1]
+# W_lr_out = W_lr[:, :1]
+
+# Perform the RR fit no intercept:
+rfit_array = R
+eye = np.eye(rfit_array.shape[0])
+W_rr = Y @ rfit_array.T @ np.linalg.inv(rfit_array @ rfit_array.T + reg_param * eye)
+W_rr_noint_out = W_rr[:, :1]
 
 # Perform the RR fit:
 rfit_array = utilities.vectorize(utilities.add_one, (R.T,)).T
@@ -85,11 +92,11 @@ W_rr_alt_out = W_rr_alt[:, :1]
 
 ######### PREDICTIONS: ############
 
-# Predictor of lr fit:
-Y_lr_hat = W_lr_out @ R + b_lr
-
-# Predictor of rr fit:
-Y_rr_hat = W_rr_out @ R + b_rr
+# # Predictor of lr fit:
+# Y_lr_hat = W_lr_out @ R + b_lr
+#
+# # Predictor of rr fit:
+# Y_rr_hat = W_rr_out @ R + b_rr
 
 # # Predictor of lr fit centered:
 # Y_lr_cent_hat = R @ W_lr_out_cent + b_lr_cent
@@ -158,11 +165,16 @@ fig.add_trace(
     go.Scatter(x=R[0, :], y=Y[0, :],
                mode="markers",
                marker=dict(
-                   size=3,
-                   color="red"
+                   size=5,
+                   # color="red",
+                   opacity=0.5,
+                   line=dict(
+                       width=1
+                   )
                    # opacity=0.8
                ),
-               name="Real data"
+               # name=r"$\text{Trainings data: }(\boldsymbol{k}[i], \boldsymbol{y}[i])$"
+               name=r"$\text{Train data: }(\boldsymbol{k}[i], \boldsymbol{y}[i])$"
                )
 )
 
@@ -195,7 +207,9 @@ fig.add_trace(
                    # color="red"
                    # opacity=0.8
                ),
-               name="RR with bias"
+               # name="intercept"
+line=dict(dash="dashdot", width=4),
+               name=r"$\hat{\boldsymbol{y}}\text{ unpenalized intercept}$"
                )
 )
 
@@ -210,10 +224,66 @@ fig.add_trace(
                    # color="red"
                    # opacity=0.8
                ),
-               name="RR with bias penalized"
+               line=dict(dash="dot", width=4),
+               name=r"$\hat{\boldsymbol{y}}\text{ penalized intercept}$"
+               # name=r"$\hat{\boldsymbol{y}} = \mathbf{W}_\text{c} \boldsymbol{k} + \boldsymbol{w}_\text{c}$"
                )
 )
 
+# RR with bias penalized:
+y_min = W_rr_noint_out[0, 0] * x_min
+y_max = W_rr_noint_out[0, 0] * x_max
+fig.add_trace(
+    go.Scatter(x=[x_min, x_max], y=[y_min, y_max],
+               mode="lines",
+               marker=dict(
+                   size=3,
+                   # color="red"
+                   # opacity=0.8
+               ),
+# line=dict(dash="dash"),
+               # name="No intercept",
+line=dict(width=4),
+               name=r"$\hat{\boldsymbol{y}}\text{ no intercept}$",
+               )
+)
+
+fig.add_vline(x=0, line_dash="dash")
+fig.add_hline(y=0, line_dash="dash")
+
 fig.update_layout(scene=dict(aspectmode="data"))
+fig.update_layout(template="plotly_white",
+                  showlegend=True,
+                  )
+
+fig.update_xaxes(title=r"$\text{Input } \boldsymbol{k}$")
+fig.update_yaxes(title=r"$\text{Output } \boldsymbol{y}$")
+
+fig.update_layout(
+    legend=dict(
+        # orientation="h",
+        yanchor="bottom",
+        y=0.85,  # 0.99
+        # xanchor="left",
+        x=0.04,
+        # x=0,
+        # font=dict(size=12)),
+        font=dict(size=15)),
+    width=500,
+    height=500,
+    font=dict(
+        size=15,
+    )
+)
 
 st.plotly_chart(fig)
+
+log_reg_param_str = str(int(log_reg_param))
+if "-" in log_reg_param_str:
+    log_reg_param_str = log_reg_param_str.replace("-", "m")
+
+if center_r:
+    file_name = f"ridge_theory_centered_{log_reg_param_str}.png"
+else:
+    file_name = f"ridge_theory_uncentered_{log_reg_param_str}.png"
+fig.write_image(file_name, scale=3)

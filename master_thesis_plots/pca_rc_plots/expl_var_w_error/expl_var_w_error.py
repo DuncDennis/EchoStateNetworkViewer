@@ -19,7 +19,7 @@ ts_creation_args = {"t_train_disc": 1000,
                     "t_validate_disc": 1000,
                     "t_validate_sync": 100,
                     "t_validate": 400,
-                    "n_train_sects": 1,
+                    "n_train_sects": 5,
                     "n_validate_sects": 1,
                     "normalize_and_center": True,
                     }
@@ -48,7 +48,7 @@ build_args = {
 }
 
 # Ensemble size:
-n_ens = 5
+n_ens = 10
 
 # seeds:
 seed = 1
@@ -71,6 +71,7 @@ for i_ens in range(n_ens):
         pca = PCA()
         res_pca_states = pca.fit_transform(res_states)
         expl_var_ratio = pca.explained_variance_ratio_
+        expl_var_ratio = pca.explained_variance_
         if i_train == 0 and i_ens == 0:
             # explained variances:
             n_components = expl_var_ratio.size
@@ -87,7 +88,7 @@ for i_ens in range(n_ens):
         # results[i_ens, i_train, :, :] = res_states
 
 # Plot:
-x = np.arange(0, n_components)
+x = np.arange(0, n_components) + 1
 y = np.median(expl_var_ratio_results, axis=(0, 1))
 y_low = np.min(expl_var_ratio_results, axis=(0, 1))
 y_high = np.max(expl_var_ratio_results, axis=(0, 1))
@@ -100,15 +101,18 @@ y_high = y_high.tolist()
 
 
 # plot params:
-yaxis_title = r"$\text{Explained Variance Ratio } \lambda_i$"
+# yaxis_title = r"$\text{Explained Variance Ratio } \lambda_i$"
+yaxis_title = r"$\text{Explained Variance } \lambda_i$"
 xaxis_title =  r'$\text{Principal Component } \boldsymbol{p}_i$'
+# xaxis_title =  r'$\text{Principal Component } i$'
 title = None
-height = 500
-width = int(1.4 * height)
+# height = 500
+# width = int(1.4 * height)
+height = 350
+width = int(2.0 * height)
 
 log_x=False
-log_y=True
-
+log_y=False
 
 x_axis = dict(tickmode="linear",
               tick0=0,
@@ -195,5 +199,7 @@ fig.update_layout(
 
 # SAVE
 # fig.write_image("intro_expl_var_w_error.pdf", scale=3)
-fig.write_image("expl_var_w_error.png", scale=3)
-
+if log_y:
+    fig.write_image("expl_var_w_error_logy.png", scale=3)
+else:
+    fig.write_image("expl_var_w_error.png", scale=3)

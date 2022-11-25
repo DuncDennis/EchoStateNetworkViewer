@@ -261,7 +261,7 @@ class ResCompCore(ABC):
                         "r": r_array,
                         "rgen": rgen_array,
                         "rproc": rproc_array,
-                        "rfit_array": rfit_array,
+                        "rfit": rfit_array,
                         "y": y_train_fit}.
         """
 
