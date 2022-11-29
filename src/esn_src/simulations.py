@@ -513,7 +513,7 @@ class Halvorsen(SimBaseRungeKutta):
     - Starting point: [-5.0, 0.0, 0.0]
     """
 
-    default_parameters = {"a": 1.27, "dt": 0.1}
+    default_parameters = {"a": 1.27, "dt": 0.05}
     default_starting_point = np.array([-5.0, 0.0, 0.0])
     sys_dim = 3
 
