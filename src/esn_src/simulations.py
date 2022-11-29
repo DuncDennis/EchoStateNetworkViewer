@@ -496,6 +496,7 @@ class Rucklidge(SimBaseRungeKutta):
         Args:
             kappa: 'kappa' parameter in the Rucklidge equations.
             lam: 'lambda' parameter in the Rucklidge equations.
+            dt: Size of time steps.
         """
 
         self.kappa = kappa or self.default_parameters["kappa"]
@@ -513,6 +514,52 @@ class Rucklidge(SimBaseRungeKutta):
 
         """
         return np.array([-self.kappa * x[0] + self.lam * x[1] - x[1] * x[2], x[0], -x[2] + x[1] ** 2])
+
+
+class Halvorsen(SimBaseRungeKutta):
+    """Simulate the 3-dimensional autonomous flow: Halvorsen's cyclically symmetric attractor.
+
+    Literature values (Sprott, Julien Clinton, and Julien C. Sprott. Chaos and time-series
+    analysis. Vol. 69. Oxford: Oxford university press, 2003.) for default parameters and
+    starting_point:
+    - Lyapunov exponents: (0.7899, 0, -4.5999)
+    - Kaplan-Yorke dimension: 2.1717
+    - Correlation dimension: 2.110 +- 0.095
+    They refer to:
+    - Parameters: {"a": 1.27}
+    - Starting point: [-5.0, 0.0, 0.0]
+    """
+
+    default_parameters = {"a": 1.27, "dt": 0.05}
+    default_starting_point = np.array([-5.0, 0.0, 0.0])
+    sys_dim = 3
+
+    def __init__(self,
+                 a: float | None = None,
+                 dt: float | None = None) -> None:
+        """Define the system parameters.
+
+        Args:
+            a: 'a' parameter in the Halvorsen's equations.
+            dt: Size of time steps.
+        """
+
+        self.a = a or self.default_parameters["a"]
+        self.dt = dt or self.default_parameters["dt"]
+
+    def flow(self, x: np.ndarray) -> np.ndarray:
+        """Calculates (dx/dt, dy/dt, dz/dt) with given (x,y,z) for RK4.
+
+        Args:
+            x: (x,y,z) coordinates. Needs to have shape (3,).
+
+        Returns:
+            : (dx/dt, dy/dt, dz/dt) corresponding to input x.
+
+        """
+        return np.array([-self.a*x[0] - 4*x[1] - 4*x[2] - x[1]**2,
+                         -self.a*x[1] - 4*x[2] - 4*x[0] - x[2]**2,
+                         -self.a*x[2] - 4*x[0] - 4*x[1] - x[0]**2])
 
 
 class SimplestQuadraticChaotic(SimBaseRungeKutta):

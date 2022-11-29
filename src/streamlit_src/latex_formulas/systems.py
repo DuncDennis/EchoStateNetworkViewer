@@ -115,6 +115,10 @@ Rucklidge = _get_3d_equation(r"\kappa x + \lambda y -yz",
                              r"x",
                              r"-z + y^2")
 
+Halvorsen = _get_3d_equation(r"-a x - 4 y - 4 z - y^2",
+                             r"-a y - 4 z - 4 x - z^2",
+                             r"-a z - 4 x - 4 y - x^2")
+
 SimplestQuadraticChaotic = _get_3d_equation(r"y",
                                             r"z",
                                             r"-az + y^2 -x")
@@ -165,6 +169,7 @@ LATEX_DICT = {
     "Thomas": Thomas,
     "WindmiAttractor": WindmiAttractor,
     "Rucklidge": Rucklidge,
+    "Halvorsen": Halvorsen,
     "SimplestQuadraticChaotic": SimplestQuadraticChaotic,
     "SimplestCubicChaotic": SimplestCubicChaotic,
     "SimplestPiecewiseLinearChaotic": SimplestPiecewiseLinearChaotic,
