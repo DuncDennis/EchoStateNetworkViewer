@@ -260,11 +260,13 @@ if __name__ == '__main__':
                 measures.st_all_data_measures(time_series_dict, dt=dt, key="raw")
 
             with lyapunov_tab:
+                lle = None
                 if data_source == "Simulate":
                     if st.checkbox("Calculate Lyapunov exponent of system"):
                         system_name = data_name
                         system_parameters = data_parameters
-                        sysmeas.st_largest_lyapunov_exponent(system_name, system_parameters)
+                        lle = sysmeas.st_largest_lyapunov_exponent(system_name,
+                                                             system_parameters)
                 else:
                     st.info("This feature is only available if the data is simulated from a "
                             "dynamical system. ")
@@ -375,6 +377,7 @@ if __name__ == '__main__':
                                                         y_true_traj=y_pred_true,
                                                         dt=dt,
                                                         train_or_pred="predict",
+                                                        lle=lle,
                                                         key="predict")
         else:
             st.info(esnutils.create_needed_status_string_tab(status_name))

@@ -46,8 +46,8 @@ def st_write_status(status_dict: dict[str, bool]) -> None:
 
     """
 
-    cols = st.columns(2)
     for key, val in status_dict.items():
+        cols = st.columns(2)
         phase_icon = STATUS_TO_STATUS_LABEL_MAPPER[key]
         status_icon = STATUS_BOOL_TO_ICON_MAPPER[val]
         cols[0].write(phase_icon)

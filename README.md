@@ -15,7 +15,7 @@ since the streamlit server resources are shared among all users.
 0. (Install Anaconda if not already installed.)
 1. Clone this repository and enter the main directory.
 2. Create the environment with: `conda create --name rc_streamlit_app --file requirements.txt python=3.9` 
-3. Activate newly created environment with: `conda activate rc_streamlit_app`.
+3. Activate newly created environment with: `conda activate rc_streamlit_app`
 4. Run app with `streamlit run esn_app.py`
 5. App will open in browser.
 

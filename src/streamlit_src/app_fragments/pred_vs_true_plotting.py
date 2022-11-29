@@ -64,6 +64,7 @@ def st_show_valid_times_vs_error_threshold(y_pred_traj: np.ndarray,
                                            y_true_traj: np.ndarray,
                                            dt: float,
                                            save_session_state: bool = False,
+                                           lle: None | float = None,
                                            key: str | None = None) -> None:
     """Streamlit element to show a valid times vs error threshold plot.
 
@@ -78,6 +79,7 @@ def st_show_valid_times_vs_error_threshold(y_pred_traj: np.ndarray,
         y_true_traj: The true, baseline time series.
         dt: The time step.
         save_session_state: Whether to save the session state or not.
+        lle: The largest lyapunov exponent. It is used to plot the valid time in Lyapunov times.
         key: Provide a unique key if this streamlit element is used multiple times.
 
     """
@@ -98,14 +100,25 @@ def st_show_valid_times_vs_error_threshold(y_pred_traj: np.ndarray,
         y_label_add = "real time"
         valid_times *= dt
     elif time_axis == "lyapunov times":
-
-        latest_measured_lle = utils.st_get_session_state_category(name="LLE", category="MEASURES")
+        latest_measured_lle = lle
         if latest_measured_lle is None:
             disabled = True
         else:
             disabled = False
 
-        if st.checkbox("Use latest measured LLE", disabled=disabled, value=not(disabled),
+        if st.checkbox("Use latest measured LLE",
+                       disabled=disabled,
+                       value=not(disabled),
+                       help=
+                       r"""
+                       LLE = Largest Lyapunov Exponent
+                       
+                       Take the LLE measured in the [📼 Raw data] tab to plot the valid time 
+                       in Lyapunov times $1/\lambda$. 
+                       
+                       Note: This only works for simulated data, and then if the checkbox 
+                       "Calculate Lyapunov exponent of system" is checked. 
+                       """,
                        key=f"{key}__st_show_valid_times_vs_error_threshold__llecheck"):
             default_lle = latest_measured_lle
         else:
@@ -137,6 +150,7 @@ def st_all_difference_measures(y_pred_traj: np.ndarray,
                                dt: float,
                                train_or_pred: str,
                                with_valid_time: bool = True,
+                               lle: None | float = None,
                                key: str | None = None
                                ) -> None:
     """Streamlit element for all difference based measures.
@@ -153,6 +167,8 @@ def st_all_difference_measures(y_pred_traj: np.ndarray,
         dt: The time step.
         train_or_pred: Either "train" or "predict".
         with_valid_time: If true also create a checkbox for the valid time plot.
+        lle: The largest lyapunov exponent (only has an effect if with_valid_time is True).
+             It is used to plot the valid time in Lyapunov times.
         key: Provide a unique key if this streamlit element is used multiple times.
 
     """
@@ -225,7 +241,8 @@ def st_all_difference_measures(y_pred_traj: np.ndarray,
             st.markdown("First time, when the error is bigger than the error threshold.")
             st_show_valid_times_vs_error_threshold(y_pred_traj,
                                                    y_true_traj,
-                                                   dt=dt)
+                                                   dt=dt,
+                                                   lle=lle)
 
 
 if __name__ == "__main__":
