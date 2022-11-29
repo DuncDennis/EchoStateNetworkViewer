@@ -26,8 +26,8 @@ def hex_to_rgba(h, alpha):
     return "rgba" + str(tuple([int(h.lstrip('#')[i:i+2], 16) for i in (0, 2, 4)] + [alpha]))
 
 # Create data:
-# sys_obj = sims.Lorenz63()
-sys_obj = sims.Logistic()
+sys_obj = sims.Lorenz63()
+# sys_obj = sims.Logistic()
 # sys_obj = sims.Henon()
 # sys_obj = sims.ComplexButterfly()
 ts_creation_args = {"t_train_disc": 1000,
@@ -38,7 +38,7 @@ ts_creation_args = {"t_train_disc": 1000,
                     "t_validate": 1000,
                     "n_train_sects": 5,
                     "n_validate_sects": 1,
-                    "normalize_and_center": True,
+                    "normalize_and_center": False,
                     }
 n_train = ts_creation_args["n_train_sects"]
 train_sync_steps = ts_creation_args["t_train_sync"]
@@ -52,8 +52,8 @@ x_dim = sys_obj.sys_dim
 build_args = {
     "x_dim": x_dim,
     "r_dim": 500,
-    "n_rad": 0.05,
-    "n_avg_deg": 3.0,
+    "n_rad": 0.1,
+    "n_avg_deg": 5.0,
     "n_type_opt": "erdos_renyi",
     "r_to_rgen_opt": "linear_r",
     "act_fct_opt": "tanh",
@@ -61,16 +61,16 @@ build_args = {
     "node_bias_scale": 0.1,
     "w_in_opt": "random_sparse",
     "w_in_scale": 1.0,
-    "x_train_noise_scale": 1e-10, # 1e-6,
-    "reg_param": 1e-9,
+    "x_train_noise_scale": 0.0, # 1e-6,
+    "reg_param": 1e-13,
     # "ridge_regression_opt": "no_bias",
     "ridge_regression_opt": "bias",
-    "scale_input_bool": False,
-    "perform_pca_bool": True
+    "scale_input_bool": True,
+    "perform_pca_bool": False
 }
 
 # Ensemble size:
-n_ens = 1  # 10
+n_ens = 3  # 10
 
 # seeds:
 seed = 1

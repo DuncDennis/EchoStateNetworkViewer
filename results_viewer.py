@@ -224,7 +224,7 @@ if filtered_df is not None:
     else:
         unique_non_sweep_param_values = [None]
     # Choose averaging:
-    avg_mode = st.selectbox("Averaging", ["mean and std", "median and quartile"])
+    avg_mode = st.selectbox("Averaging", ["median and quartile", "mean and std"])
     if avg_mode == "mean and std":
         avg_str = "mean"
         error_high = "std_high"
@@ -248,8 +248,9 @@ if filtered_df is not None:
                     else:
                         condition_df = condition_df & condition_series
                 sub_df = df_agg[condition_df]
-                name = format_name(non_sweep_params, value_combination)
-                # name = str(list(zip(non_sweep_params, value_combination)))
+                # name = format_name(non_sweep_params, value_combination)  # ONLY ADD FOR HYBRID
+                # name="test"
+                name = str(list(zip(non_sweep_params, value_combination)))
             else:
                 sub_df = df_agg
                 name=None
@@ -265,6 +266,11 @@ if filtered_df is not None:
         fig.update_yaxes(title=metric)
         fig.update_xaxes(title=sweep_param)
         fig.update_layout(title=avg_mode)
+
+        log_x = st.checkbox("log_x", key=metric + "log_x")
+        if log_x:
+            fig.update_xaxes(type="log",
+                             exponentformat="E")
 
         # modify_fig(fig)
         st.plotly_chart(fig)
