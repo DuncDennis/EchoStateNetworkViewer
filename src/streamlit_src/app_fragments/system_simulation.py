@@ -22,6 +22,7 @@ SYSTEM_DICT = {
     "Thomas": sims.Thomas,
     "WindmiAttractor": sims.WindmiAttractor,
     "Rucklidge": sims.Rucklidge,
+    "Halvorsen": sims.Halvorsen,
     "SimplestQuadraticChaotic": sims.SimplestQuadraticChaotic,
     "SimplestCubicChaotic": sims.SimplestCubicChaotic,
     "SimplestPiecewiseLinearChaotic": sims.SimplestPiecewiseLinearChaotic,
