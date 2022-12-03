@@ -1372,6 +1372,7 @@ SYSTEM_DICT = {
     "Thomas": Thomas,
     "WindmiAttractor": WindmiAttractor,
     "Rucklidge": Rucklidge,
+    "Halvorsen": Halvorsen,
     "SimplestQuadraticChaotic": SimplestQuadraticChaotic,
     "SimplestCubicChaotic": SimplestCubicChaotic,
     "SimplestPiecewiseLinearChaotic": SimplestPiecewiseLinearChaotic,
