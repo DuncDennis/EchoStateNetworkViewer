@@ -9,6 +9,9 @@ import src.ensemble_src.sweep_experiments as sweep
 import src.esn_src.utilities as utilities
 import src.esn_src.measures as meas
 
+predicted_color = '#EF553B'  # red
+true_color = '#636EFA'  # blue
+
 # Create data:
 dt = 0.1
 mle = 0.9059
@@ -51,7 +54,7 @@ build_args = {
 }
 
 # seeds:
-seed = 1
+seed = 2
 
 # Do experiment:
 
@@ -118,8 +121,7 @@ for i_x in range(3):
         showlegend=False
     # TRUE:
     name = "True"
-    true_color = "black"
-    true_color = '#636EFA'
+    # true_color = "black"
     y = true_pred[:t_max, i_x]
     fig.add_trace(
         go.Scatter(x=x, y=y,
@@ -136,7 +138,7 @@ for i_x in range(3):
     # TRUE:
     name = "Predicted"
     # predicted_color = "red"
-    predicted_color = '#EF553B'
+    # predicted_color = '#EF553B'
     y = pred[:t_max, i_x]
     fig.add_trace(
         go.Scatter(x=x, y=y,

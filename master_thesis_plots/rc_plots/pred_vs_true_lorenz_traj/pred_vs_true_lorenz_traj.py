@@ -8,6 +8,9 @@ import src.esn_src.simulations as sims
 import src.ensemble_src.sweep_experiments as sweep
 import src.esn_src.utilities as utilities
 
+predicted_color = '#EF553B'  # red
+true_color = '#636EFA'  # blue
+
 # Create data:
 dt = 0.1
 sys_obj = sims.Lorenz63(dt=dt)
@@ -49,7 +52,7 @@ build_args = {
 }
 
 # seeds:
-seed = 1
+seed = 2
 
 # Do experiment:
 
@@ -69,8 +72,7 @@ pred, true_pred, more_out_pred = esn_obj.predict(pred_data,
                                                  more_out_bool=True)
 
 
-color = "black"
-linewidth = 0.5
+linewidth = 3
 height = 500
 # width = int(1.4 * height)
 width = 500
@@ -78,8 +80,11 @@ width = 500
 
 
 # LORENZ:
-cx, cy, cz = 1.25, -1.25, 1.25
-f = 1.2
+# cx, cy, cz = 1.25, -1.25, 1.25
+# cx, cy, cz = 1.25, -1.25, 1.0
+cx, cy, cz = 1.25, -1.25, 0.5
+# f = 1.2
+f = 1.5
 camera = dict(eye=dict(x=f * cx,
                        y=f * cy,
                        z=f * cz))
@@ -94,7 +99,7 @@ z = true_pred[:, 2].tolist()
 fig.add_trace(
     go.Scatter3d(x=x, y=y, z=z,
                  line=dict(
-                     # color=color,
+                     color=true_color,
                      width=linewidth
                  ),
                  name=name,
@@ -110,7 +115,8 @@ z = pred[:, 2].tolist()
 fig.add_trace(
     go.Scatter3d(x=x, y=y, z=z,
                  line=dict(
-                     width=linewidth
+                     width=linewidth,
+                     color=predicted_color
                  ),
                  name=name,
                  mode="lines",
@@ -119,32 +125,41 @@ fig.add_trace(
 
 fig.update_layout(template="simple_white",
                   # showlegend=False,
+                  font=dict(
+                      size=18,
+                      family="Times New Roman"
+                  ),
                   legend=dict(
                       orientation="h",
                       yanchor="top",
                       y=0.8,
                       xanchor="right",
-                      x=0.7,
-                      font=dict(size=15)
-                  )
+                      x=0.6,
+                      font=dict(size=20)
+                  ),
+                  # xaxis_title=r"$test$"
                   )
 
-# fig.update_scenes(
-#     xaxis_title="",
-#     yaxis_title="",
-#     zaxis_title="",
-#
-#     xaxis_showticklabels=False,
-#     yaxis_showticklabels=False,
-#     zaxis_showticklabels=False
-# )
+
+fig.update_scenes(
+    # xaxis_title=r"$x(t)$",
+    # yaxis_title=r"$y(t)$",
+    # zaxis_title=r"$z(t)$",
+
+    xaxis_showticklabels=False,
+    yaxis_showticklabels=False,
+    zaxis_showticklabels=False
+)
+
+
 
 fig.update_layout(scene_camera=camera,
                   width=width,
                   height=height,
                   )
 fig.update_layout(
-    margin=dict(l=5, r=5, t=5, b=5),
+    # margin=dict(l=5, r=5, t=5, b=5),
+    margin=dict(l=0, r=0, t=0, b=0),
 )
 
 # SAVE

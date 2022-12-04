@@ -118,7 +118,7 @@ def onedim_vt_sweep_nice(fig, sweep_var, name=""):
 
     latex_text_size = "large"
     latex_text_size = "Large"
-    latex_text_size = "huge"
+    # latex_text_size = "huge"
     # latex_text_size = "normalsize"
 
 
@@ -161,15 +161,14 @@ def onedim_vt_sweep_nice(fig, sweep_var, name=""):
     )
 
     fig.update_xaxes(
-        # showgrid=True,
-        # gridwidth=1,
-        # gridcolor="black",
+        showgrid=True,
+        gridwidth=1,
+        gridcolor="gray",
     )
     fig.update_yaxes(
         showgrid=True,
         gridwidth=1,
         gridcolor="gray",
-
     )
 
     fig.update_traces(line=dict(color="Black", width=linewidth))
