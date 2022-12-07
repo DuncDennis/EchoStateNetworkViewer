@@ -906,7 +906,9 @@ class ScalerXToXProcMixin:
 
 
 class InputMatrixMixin:
-    """Simple Input matrix. """
+    """Simple Input matrix.
+    w_in has shape: r_dim x xproc_dim.
+    """
     def __init__(self):
         self.w_in: np.ndarray | None = None
 

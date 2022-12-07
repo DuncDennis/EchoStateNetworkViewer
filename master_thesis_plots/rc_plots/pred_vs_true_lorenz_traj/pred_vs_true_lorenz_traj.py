@@ -116,7 +116,8 @@ fig.add_trace(
     go.Scatter3d(x=x, y=y, z=z,
                  line=dict(
                      width=linewidth,
-                     color=predicted_color
+                     color=predicted_color,
+                     # dash="dot"
                  ),
                  name=name,
                  mode="lines",

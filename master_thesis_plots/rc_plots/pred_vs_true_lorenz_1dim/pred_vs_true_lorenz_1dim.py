@@ -71,7 +71,8 @@ pred, true_pred, more_out_pred = esn_obj.predict(pred_data,
 error_series_ts = meas.error_over_time(y_pred=pred,
                                        y_true=true_pred,
                                        normalization="root_of_avg_of_spacedist_squared")
-vt = meas.valid_time_index(error_series_ts, error_threshold=0.4)
+vt = meas.valid_time_index(error_series_ts,
+                           error_threshold=0.4)
 
 
 linewidth = 3

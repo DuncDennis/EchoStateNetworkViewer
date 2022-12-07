@@ -12,6 +12,15 @@ import src.esn_src.measures as meas
 predicted_color = '#EF553B'  # red
 true_color = '#636EFA'  # blue
 
+# def hex_to_rgba(h, alpha):
+#     '''
+#     converts color value in hex format to rgba format with alpha transparency
+#     '''
+#     return tuple([int(h.lstrip('#')[i:i+2], 16) for i in (0, 2, 4)] + [alpha])
+#
+# predicted_color = hex_to_rgba(predicted_color, 0.5)  # opacity
+# true_color = hex_to_rgba(true_color, 0.5)  # opacity
+
 # Create data:
 dt = 0.1
 mle = 0.9059
@@ -127,7 +136,7 @@ for i_x in range(3):
         go.Scatter(x=x, y=y,
                    line=dict(
                        color=true_color,
-                       width=linewidth
+                       width=linewidth,
                    ),
                    showlegend=showlegend,
                    name=name,
@@ -144,7 +153,8 @@ for i_x in range(3):
         go.Scatter(x=x, y=y,
                    line=dict(
                        color=predicted_color,
-                       width=linewidth
+                       width=linewidth,
+                       dash="dot"
                    ),
                    showlegend=showlegend,
                    name=name,

@@ -12,16 +12,17 @@ import src.ensemble_src.sweep_experiments as sweep
 import src.esn_src.utilities as utilities
 
 # Create data:
-sys_obj = sims.Lorenz63()
+sys_obj = sims.Lorenz63(dt=0.1)
 ts_creation_args = {"t_train_disc": 1000,
                     "t_train_sync": 100,
-                    "t_train": 5000,
+                    # "t_train": 5000,
+                    "t_train": 1000,
                     "t_validate_disc": 1000,
                     "t_validate_sync": 100,
-                    "t_validate": 400,
+                    "t_validate": 1000,
                     "n_train_sects": 5,
                     "n_validate_sects": 1,
-                    "normalize_and_center": True,
+                    "normalize_and_center": False,
                     }
 n_train = ts_creation_args["n_train_sects"]
 train_sync_steps = ts_creation_args["t_train_sync"]
@@ -31,24 +32,24 @@ train_data_list, validate_data_list_of_lists = sweep.time_series_creator(sys_obj
 # Build RC args:
 build_args = {
     "x_dim": 3,
-    "r_dim": 100,
+    "r_dim": 500,
     "n_rad": 0.4,
-    "n_avg_deg": 3.0,
+    "n_avg_deg": 5.0,
     "n_type_opt": "erdos_renyi",
     "r_to_rgen_opt": "linear_r",
     "act_fct_opt": "tanh",
     "node_bias_opt": "random_bias",
-    "node_bias_scale": 0.1,
+    "node_bias_scale": 0.4,
     "w_in_opt": "random_sparse",
     "w_in_scale": 1.0,
     "x_train_noise_scale": 0.0,
     "reg_param": 1e-7,
-    "ridge_regression_opt": "no_bias",
-    "scale_input_bool": False,
+    "ridge_regression_opt": "bias",
+    "scale_input_bool": True,
 }
 
 # Ensemble size:
-n_ens = 10
+n_ens = 5
 
 # seeds:
 seed = 1
@@ -114,17 +115,18 @@ width = int(2.0 * height)
 log_x=False
 log_y=False
 
-x_axis = dict(tickmode="linear",
-              tick0=0,
-              dtick=500)
+# x_axis = dict(tickmode="linear",
+#               tick0=0,
+#               dtick=500)
 x_axis=None
 
-y_axis = dict(tickmode="linear",
-              tick0=0,
-              dtick=500)
+# y_axis = dict(tickmode="linear",
+#               tick0=0,
+#               dtick=500)
 y_axis=None
 
-xrange = [-5, 105]
+# xrange = [-5, 105]
+xrange = None
 yrange = None  # [0, 15]
 font_size = 15
 legend_font_size = 11
@@ -182,12 +184,7 @@ if log_x:
     )
     fig.update_xaxes(type="log")
 
-if log_y:
-    fig.update_layout(
-        yaxis={
-            'exponentformat': 'E'}
-    )
-    fig.update_yaxes(type="log")
+
 
 fig.update_layout(template="plotly_white",
                   showlegend=False,
@@ -199,7 +196,14 @@ fig.update_layout(
 
 # SAVE
 # fig.write_image("intro_expl_var_w_error.pdf", scale=3)
-if log_y:
-    fig.write_image("expl_var_w_error_logy.png", scale=3)
-else:
-    fig.write_image("expl_var_w_error.png", scale=3)
+
+# Non log plot:
+fig.write_image("expl_var_w_error.png", scale=3)
+
+# make log_y plot:
+fig.update_layout(
+    yaxis={
+        'exponentformat': 'E'}
+)
+fig.update_yaxes(type="log")
+fig.write_image("expl_var_w_error_logy.png", scale=3)

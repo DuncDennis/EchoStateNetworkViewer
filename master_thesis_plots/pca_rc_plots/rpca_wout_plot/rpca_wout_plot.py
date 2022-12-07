@@ -26,13 +26,14 @@ def hex_to_rgba(h, alpha):
     return "rgba" + str(tuple([int(h.lstrip('#')[i:i+2], 16) for i in (0, 2, 4)] + [alpha]))
 
 # Create data:
-sys_obj = sims.Lorenz63()
+sys_obj = sims.Lorenz63(dt=0.1)
+# sys_obj = sims.Halvorsen()
 # sys_obj = sims.Logistic()
 # sys_obj = sims.Henon()
 # sys_obj = sims.ComplexButterfly()
 ts_creation_args = {"t_train_disc": 1000,
                     "t_train_sync": 100,
-                    "t_train": 5000,
+                    "t_train": 1000,
                     "t_validate_disc": 1000,
                     "t_validate_sync": 100,
                     "t_validate": 1000,
@@ -40,6 +41,7 @@ ts_creation_args = {"t_train_disc": 1000,
                     "n_validate_sects": 1,
                     "normalize_and_center": False,
                     }
+
 n_train = ts_creation_args["n_train_sects"]
 train_sync_steps = ts_creation_args["t_train_sync"]
 pred_sync_steps = ts_creation_args["t_validate_sync"]
@@ -52,21 +54,21 @@ x_dim = sys_obj.sys_dim
 build_args = {
     "x_dim": x_dim,
     "r_dim": 500,
-    "n_rad": 0.1,
+    "n_rad": 0.4,
     "n_avg_deg": 5.0,
     "n_type_opt": "erdos_renyi",
     "r_to_rgen_opt": "linear_r",
     "act_fct_opt": "tanh",
     "node_bias_opt": "random_bias",
-    "node_bias_scale": 0.1,
+    "node_bias_scale": 0.4,
     "w_in_opt": "random_sparse",
     "w_in_scale": 1.0,
     "x_train_noise_scale": 0.0, # 1e-6,
-    "reg_param": 1e-13,
+    "reg_param": 1e-14,
     # "ridge_regression_opt": "no_bias",
     "ridge_regression_opt": "bias",
     "scale_input_bool": True,
-    "perform_pca_bool": False
+    "perform_pca_bool": True
 }
 
 # Ensemble size:
