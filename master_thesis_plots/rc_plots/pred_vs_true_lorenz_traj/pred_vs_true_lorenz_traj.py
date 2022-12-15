@@ -35,7 +35,8 @@ train_data_list, validate_data_list_of_lists = sweep.time_series_creator(sys_obj
 # Build RC args:
 build_args = {
     "x_dim": 3,
-    "r_dim": 500,
+    # "r_dim": 500,
+    "r_dim": 60,
     "n_rad": 0.4,
     "n_avg_deg": 5.0,
     "n_type_opt": "erdos_renyi",

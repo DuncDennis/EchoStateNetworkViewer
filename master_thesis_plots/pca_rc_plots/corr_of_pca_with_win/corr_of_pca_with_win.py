@@ -62,7 +62,7 @@ build_args = {
 x_dim = build_args["x_dim"]
 
 # Ensemble size:
-n_ens = 10
+n_ens = 2
 
 # seeds:
 seed = 250
@@ -210,101 +210,92 @@ fig.update_layout(
 file_name = f"corr_of_pca_with_win.png"
 fig.write_image(file_name, scale=3)
 
-# comp_list = [0, 1, 2, 3, 4, 5, 6]
-# nr_comps = len(comp_list)
-#
-# subplot_titles = [fr"${comp}$" for comp in comp_list]
-# fig = make_subplots(rows=nr_comps, cols=1, shared_yaxes=True,
-#                     shared_xaxes=True, vertical_spacing=None,
-#                     print_grid=True,
-#                     x_title=xaxis_title,
-#                     y_title=yaxis_title,
-#                     # row_heights=[height] * nr_taus,
-#                     # column_widths=[width],
-#                     subplot_titles=subplot_titles,
-#                     # row_titles=[str(x) for x in tau_list],
-#                     )
-#
-#
-# # x axis to plot:
-# x = np.arange(1, n_components+1)
-#
-# # linewidth:
-# linewidth = 3
-#
-# for i_comp, comp in enumerate(comp_list):
-#
-#     # colors:
-#     hex_color = next(col_pal_iterator)
-#     rgb_line = hex_to_rgba(hex_color, 1.0)
-#     rgb_fill = hex_to_rgba(hex_color, 0.45)
-#
-#     mean = mean_corr[i_comp, :]
-#     error_low = low_corr[i_comp, :]
-#     error_high = high_corr[i_comp, :]
-#
-#     fig.add_trace(
-#         go.Bar(x=x,
-#                y=mean,
-#                showlegend=False,
-#                error_y=dict(symmetric=False,
-#                             thickness=1,
-#                             array=error_high - mean,
-#                             arrayminus=mean - error_low)
-#                ),
-#         # go.Scatter(x=x,
-#         #            y=plot,
-#         #            # name=fr"$\tau = {tau}$",
-#         #            showlegend=False,
-#         #            mode="lines",
-#         #            line=dict(color=rgb_line,
-#         #                      width=linewidth)
-#         #            ),
-#         row=i_comp + 1, col=1
-#     )
-#     # fig.add_trace(
-#     #     go.Scatter(
-#     #         x=x.tolist() + x.tolist()[::-1],  # x, then x reversed
-#     #         y=error_high.tolist() + error_low.tolist()[::-1],  # upper, then lower reversed
-#     #         fill='toself',
-#     #         fillcolor=rgb_fill,
-#     #         line=dict(color='rgba(255,255,255,0)'),
-#     #         hoverinfo="skip",
-#     #         showlegend=False
-#     #     ),
-#     #     row=i_tau+1, col=1
-#     # )
-#
-# # fig.update_yaxes(range=[0, 2.5],
-# #                  tick0=0.0,
-# #                  dtick=1.0)
-#
-# fig.update_layout(template="simple_white",
-#                   showlegend=False,
-#                   font=dict(
-#                       size=font_size,
-#                       family=font_family
-#                   ),
-#                   )
-# fig.update_layout(
-#     margin=dict(l=70, r=20, t=20, b=50),
-# )
-#
-# fig.update_layout(
-#     width=width,
-#     height=height,
-#     legend=dict(
-#         # orientation="h",
-#         yanchor="top",
-#         y=1.01,
-#         xanchor="right",
-#         x=0.95,
-#         font=dict(size=legend_font_size)
-#     )
-# )
-#
-# # SAVE
-# file_name = f"corr_of_pca_with_win.png"
-# # file_name = f"intro_pca_traj_{name}.pdf"
-# fig.write_image(file_name, scale=3)
 
+###### For each Dimensions now: ######
+
+# PLOT:
+height = 300
+width = int(1.3 * height)
+font_size = 25
+legend_font_size = 25
+font_family = "Times New Roman"
+
+# xaxis_title = r"$\text{Principal component } \boldsymbol{p}_i$"
+xaxis_title = r"$\Large\text{Principal component } i$"
+# yaxis_title =  r"$\sum_i |\text{corr}_{ij}|$"
+# yaxis_title =  r"$\text{Summed correlation between } W_\text{in} \text{ and } \boldsymbol{p}_i$"
+# yaxis_title =  r"$\Large A_i$"
+yaxis_title =  r"?"
+
+linewidth=3
+
+
+# first plot:
+max_comp = 25
+
+# Get data:
+x = np.arange(1, max_comp + 1)
+
+x_list = list(x)
+
+fig = go.Figure()
+for i_x in range(x_dim):
+    # colors:
+    hex_color = next(col_pal_iterator)
+    rgb_line = hex_to_rgba(hex_color, 1.0)
+    rgb_fill = hex_to_rgba(hex_color, 0.45)
+
+    y = list(mean_abs_corr[:, i_x])[:max_comp]
+    low_list = list(low_abs_corr[:, i_x])[:max_comp]
+    high_list = list(high_abs_corr[:, i_x])[:max_comp]
+
+    # plot median:
+    fig.add_trace(
+        go.Scatter(
+            x=x_list,
+            y=y,
+            line=dict(color=rgb_line,
+                      width=linewidth),
+            name=f"{i_x + 1}",
+            showlegend=True)
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=x_list + x_list[::-1],  # x, then x reversed
+            y=high_list + low_list[::-1], # upper, then lower reversed
+            fill='toself',
+            fillcolor=rgb_fill,
+            line=dict(color='rgba(255,255,255,0)'),
+            hoverinfo="skip",
+            showlegend=False
+        )
+    )
+
+    fig.add_vline(x=x_dim,
+                  line_width=3,
+                  line_dash="dash",
+                  line_color="black",
+                  # annotation_text= r"$x_\text{dim} $" + fr"${x_dim}$",
+                  annotation_text= r"$\Large x_\text{dim}$",
+                  annotation_font_size=30,
+                  annotation_position="top right"
+                  )
+
+fig.update_layout(template="simple_white",
+                  showlegend=True,
+                  font=dict(
+                      size=font_size,
+                      family=font_family
+                  ),
+                  xaxis_title=xaxis_title,
+                  yaxis_title=yaxis_title
+                  )
+
+fig.update_layout(
+    margin=dict(l=70, r=20, t=20, b=50),
+)
+
+# SAVE
+file_name = f"corr_of_pca_with_win_dimwise.png"
+fig.write_image(file_name, scale=3)

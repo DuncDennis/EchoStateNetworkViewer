@@ -26,7 +26,8 @@ def hex_to_rgba(h, alpha):
     return "rgba" + str(tuple([int(h.lstrip('#')[i:i+2], 16) for i in (0, 2, 4)] + [alpha]))
 
 # Create data:
-sys_obj = sims.Lorenz63(dt=0.1)
+# sys_obj = sims.Lorenz63(dt=0.1)
+sys_obj = sims.Lorenz63(dt=0.05)
 # sys_obj = sims.Halvorsen()
 # sys_obj = sims.Logistic()
 # sys_obj = sims.Henon()
@@ -38,7 +39,7 @@ ts_creation_args = {"t_train_disc": 1000,
                     "t_validate_sync": 100,
                     "t_validate": 1000,
                     "n_train_sects": 5,
-                    "n_validate_sects": 1,
+                    "n_validate_sects": 1, # keep it at 1 here.
                     "normalize_and_center": False,
                     }
 
@@ -72,13 +73,18 @@ build_args = {
 }
 
 # Ensemble size:
-n_ens = 3  # 10
+n_ens = 5  # 10
 
 # seeds:
 seed = 1
 rng = np.random.default_rng(seed)
 seeds = rng.integers(0, 10000000, size=n_ens)
 
+pca_rc_bool = False
+# Check if pca part of RC architecture:
+if "perform_pca_bool" in build_args:
+    if build_args["perform_pca_bool"]:
+        pca_rc_bool = True
 
 # Do experiment:
 for i_ens in range(n_ens):
@@ -90,24 +96,46 @@ for i_ens in range(n_ens):
     for i_train in range(n_train):
         # Train RC:
         train_data = train_data_list[i_train]
-        _, _, more_out = esn_obj.train(train_data, sync_steps=train_sync_steps, more_out_bool=True)
-        # res_states = more_out["rgen"]
-        res_states = more_out["rfit"]  # get rfit states
-        pca = PCA()
-        res_pca_states = pca.fit_transform(res_states)  # pc transform rfit states.
+        _, _, more_out = esn_obj.train(train_data,
+                                       sync_steps=train_sync_steps,
+                                       more_out_bool=True)
+
+        # PCA train:
+        if pca_rc_bool:
+            res_pca_states = more_out["rfit"]
+
+        else:
+            res_states = more_out["rfit"]  # get rfit states
+            pca = PCA()
+            res_pca_states = pca.fit_transform(res_states)  # pc transform rfit states.
+
         var_train = np.var(res_pca_states, axis=0)
 
-        # expl_var_ratio = pca.explained_variance_ratio_
-        # expl_var_ratio = pca.explained_variance
         w_out = esn_obj.get_w_out()
 
         if build_args["ridge_regression_opt"] == "bias":
             w_out = w_out[:, :-1]
+
+        if pca_rc_bool:
+            w_out_pca = w_out
+        else:
+            w_out_pca = w_out @ pca.components_.T
+
         # Prediction:
         validate_data = validate_data_list_of_lists[i_train][0]
         pred, true_pred, more_out_pred = esn_obj.predict(validate_data,
-                                              sync_steps=pred_sync_steps,
-                                              more_out_bool=True)
+                                                         sync_steps=pred_sync_steps,
+                                                         more_out_bool=True)
+
+        # pred pca states:
+        if pca_rc_bool:
+            res_pca_states_pred = more_out_pred["rfit"]
+        else:
+
+            res_states_pred = more_out_pred["rfit"]
+            res_pca_states_pred = pca.transform(res_states_pred)  # PCA transform the res_states_pred
+
+        var_pred = np.var(res_pca_states_pred, axis=0)
 
         ### VALID TIME? MAYBE?
         error_series_ts = meas.error_over_time(y_pred=pred,
@@ -115,11 +143,6 @@ for i_ens in range(n_ens):
                                                normalization="root_of_avg_of_spacedist_squared")
         vt = meas.valid_time_index(error_series_ts, error_threshold=0.4)
 
-
-        # rgen_pred = more_out_pred["rgen"]
-        res_states_pred = more_out_pred["rfit"]
-        res_pca_states_pred = pca.transform(res_states_pred)  # PCA transform the res_states_pred
-        var_pred = np.var(res_pca_states_pred, axis=0)
 
         if i_train == 0 and i_ens == 0:
             # explained variances:
@@ -137,29 +160,11 @@ for i_ens in range(n_ens):
             # valid time??
             vt_results = np.zeros((n_ens, n_train))
 
-
-        # explained variances:
-        # expl_var_ratio_results[i_ens, i_train, :] = expl_var_ratio
-
-        if "perform_pca_bool" in build_args:
-            if build_args["perform_pca_bool"]:
-                w_out_pca = w_out
-            else:
-                w_out_pca = w_out @ pca.components_.T
-        else:
-            w_out_pca = w_out @ pca.components_.T
         w_out_pca_results[i_ens, i_train, :, :] = w_out_pca
 
         # Rpca std for train and predict:
-
         rpca_train_var_results[i_ens, i_train, :] = var_train
         rpca_pred_var_results[i_ens, i_train, :] = var_pred
-
-        # rpca_train_std_results[i_ens, i_train, :] = np.std(res_pca_states, axis=0)
-        # rpca_pred_std_results[i_ens, i_train, :] = np.std(rgen_pca_pred, axis=0)
-
-        # whole resrvoir states:
-        # results[i_ens, i_train, :, :] = res_states
 
         #valid time??
         vt_results[i_ens, i_train]  = vt
@@ -323,14 +328,16 @@ fig.update_layout(
 
 # valid time?
 vt_median = np.median(vt_results)
-vt_lower = np.quantile(vt_results, q=0.25)
-vt_higher = np.quantile(vt_results, q=0.75)
+# vt_lower = np.quantile(vt_results, q=0.25)
+vt_lower = np.min(vt_results)
+# vt_higher = np.quantile(vt_results, q=0.75)
+vt_higher = np.max(vt_results)
 vt_string = f"{vt_median} within {vt_lower} and {vt_higher}"
 print(vt_string)
-# fig.update_layout(title=vt_string)
+fig.update_layout(title=vt_string)
 
 fig.update_layout(
-    title=title,
+    # title=title,
     width=width,
     height=height,
     xaxis=x_axis,
@@ -371,7 +378,7 @@ if log_y:
     )
     fig.update_yaxes(type="log")
 
-fig.update_layout(template="plotly_white",
+fig.update_layout(template="simple_white",
                   showlegend=True,
                   )
 
@@ -407,7 +414,7 @@ fig = make_subplots(rows=nr_out, cols=1,
                     y_title=yaxis_title,
                     # row_heights=[height] * nr_taus,
                     # column_widths=[width],
-                    # subplot_titles=[fr"$i = {1+x}$" for x in range(nr_out)],
+                    subplot_titles=[fr"$i = {1+x}$" for x in range(nr_out)],
                     # horizontal_spacing=1,
                     # row_titles=[fr"$i = {x}$" for x in dimensions],
                     )
@@ -417,10 +424,11 @@ for i in range(nr_out):
     color = next(col_pal_iterator)
     fig.add_trace(
         go.Scatter(x=x, y=mean_abs_w_out[i, :],
-        line=dict(width=linewidth,
-                  color=color),
-        name=f"{i}", showlegend=True),
-        row=i+1, col=1
+                   line=dict(width=linewidth,
+                             color=color),
+                   name=f"{i}",
+                   showlegend=False),
+        row=i + 1, col=1
     )
     low = error_low_w_out[i, :].tolist()
     high = error_high_w_out[i, :].tolist()
@@ -432,6 +440,10 @@ for i in range(nr_out):
                    showlegend=False),
         row=i + 1, col=1
     )
+
+
+fig.update_layout(template="simple_white",
+                  showlegend=False)
 # fig.update_layout(
 #     title=title,
 #     width=width,
