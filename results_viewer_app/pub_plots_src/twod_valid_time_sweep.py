@@ -27,7 +27,7 @@ PARAM_TRANSFORM = {
     "P n_rad": r"\text{Spectral radius } \rho_0$",
     "P dt": r"\text{Time step of system } \Delta t$",
     "P x_train_noise_scale": r"\text{Train noise scale } \sigma_\text{T}$",
-    "P model_error_eps": r"\epsilon$",
+    "P model_error_eps": r"\text{model error }\epsilon$",
     "P predictor_type": r"\text{hybrid type}$",
     "P system": r"\text{system}$"
 }
@@ -61,7 +61,7 @@ LINECOLOR = "Black"
 
 # Errorbar:
 ERRORWIDTH = 8
-ERRORLINEWIDTH = 3
+ERRORLINEWIDTH = 2
 
 # Grid settings:
 GRID_SETTINGS = {
@@ -76,11 +76,10 @@ MARGIN_DICT = dict(l=5, r=5, t=5, b=5)
 
 # Y-axis range and ticks:
 Y_AXIS_DICT = dict(
-    range=[-0.5, 8.5],
+    # range=[-0.5, 8.5],
     tick0 = 0,
-    dtick = 2,
+    dtick = 5,
 )
-Y_AXIS_DICT = {}
 
 # LEGEND:
 SHOWLEGEND = True
@@ -90,7 +89,10 @@ LEGENDDICT = dict(
     y=1.01,  # 0.99
     xanchor="left",
     # x=0.01,
-    font=dict(size=16))
+    font=dict(size=20),
+    bordercolor="grey",
+    borderwidth=2,
+)
 
 # ORDER AND NAMES for HYBRID:
 HYBRIDORDER = {"only reservoir": 1,
@@ -181,7 +183,8 @@ def twodim_vt(df: pd.DataFrame,
     # logarithmic x-axis
     if x_param in LOG_X_PARAMS:
         fig.update_xaxes(type="log",
-                         exponentformat=EXPONENT_FORMAT)
+                         exponentformat=EXPONENT_FORMAT,
+                         dtick=1)
 
     xaxis_title = PARAM_TRANSFORM[x_param]
     xaxis_title = rf"$\{LATEX_TEXT_SIZE}" + xaxis_title

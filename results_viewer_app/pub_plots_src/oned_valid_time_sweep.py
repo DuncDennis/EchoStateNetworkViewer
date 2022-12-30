@@ -69,7 +69,7 @@ LINECOLOR = "Black"
 
 # Errorbar:
 ERRORWIDTH = 8
-ERRORLINEWIDTH = 3
+ERRORLINEWIDTH = 2
 
 # Grid settings:
 GRID_SETTINGS = {
