@@ -27,6 +27,18 @@ def mse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """
     return (np.linalg.norm(y_true - y_pred, axis=1)**2).mean()
 
+def dummy_metric(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """Dummy metric which returns just a 1.
+    # TODO: Should not be needed.
+    Args:
+        y_true: The true time series of shape (time steps, sysdim).
+        y_pred: The predicted time series of shape (time steps, sysdim).
+
+    Returns:
+        1.
+    """
+    return 1
+
 def valid_time(y_true: np.ndarray,
                y_pred: np.ndarray,
                dt: float = 1.0,
@@ -54,13 +66,31 @@ def valid_time(y_true: np.ndarray,
     return measures.valid_time_index(error_series,
                                      error_threshold=error_threshold) * dt * lle
 
+def valid_time_centered_error(y_true: np.ndarray,
+                              y_pred: np.ndarray,
+                              dt: float = 1.0,
+                              lle: float = 1.0,
+                              error_threshold: float = 0.4,
+                              ):
+    """
+    The same as valid time, but uses a specific error_norm which additionaly centeres the
+    dominator in the error norm, compared to "root_of_avg_of_spacedist_squared".
+    """
+    return valid_time(y_true,
+                      y_pred,
+                      dt=dt,
+                      lle=lle,
+                      error_threshold=error_threshold,
+                      error_norm="root_of_avg_of_centered_spacedist_squared")
+
 DEFAULT_TRAIN_METRICS = {
     "MSE": mse
 }
 
 DEFAULT_PREDICT_METRICS = {
     "MSE": mse,
-    "VT": valid_time
+    "VT": valid_time,
+    # "VT_centered": valid_time_centered_error,
 }
 
 METRIC_PREFIX = "M "
@@ -176,10 +206,16 @@ class PredModelValidator:
         # Set the metrics for train, validate and test if they are None:
         if train_metrics is None:
             self.train_metrics = DEFAULT_TRAIN_METRICS
+        else: # TODO: maybe check if metrics are valid?
+            self.train_metrics = train_metrics
         if validate_metrics is None:
             self.validate_metrics = DEFAULT_PREDICT_METRICS
+        else:
+            self.validate_metrics = validate_metrics
         if test_metrics is None:
             self.test_metrics = DEFAULT_PREDICT_METRICS
+        else:
+            self.test_metrics = test_metrics
 
         # set optional train and pred args if they are None:
         if opt_train_args is None:
