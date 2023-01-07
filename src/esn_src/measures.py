@@ -32,6 +32,9 @@ def error_over_time(y_pred: np.ndarray, y_true: np.ndarray, normalization: str |
             norm = np.mean(y_true)
         elif normalization == "root_of_avg_of_spacedist_squared":
             norm = np.sqrt(np.mean(np.linalg.norm(y_true, axis=1) ** 2))
+        elif normalization == "root_of_avg_of_centered_spacedist_squared":
+            mean_of_y_true = np.mean(y_true, axis=0)
+            norm = np.sqrt(np.mean(np.linalg.norm(y_true - mean_of_y_true, axis=1) ** 2))
         else:
             raise ValueError(f"Normalization {normalization} not accounted for.")
         error = error_no_norm / norm
