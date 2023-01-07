@@ -10,7 +10,7 @@ from PIL import Image
 
 # PATH DEFAULTS:
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
-PLOT_BASE_FOLDER_PATH = os.path.join(DIR_PATH, "..", "pub_plots_results", "oned_valid_time_sweep")
+PLOT_BASE_FOLDER_PATH = os.path.join(DIR_PATH, "..", "pub_plots_results", "oned_valid_time_violin")
 
 
 # PARAMETER TRANSFORMATIONS:
@@ -62,8 +62,11 @@ LOG_X_PARAMS = [
 EXPONENT_FORMAT = "power"  # e, power
 
 # width and height of figure:
-HEIGHT = 350
-WIDTH = int(2.1 * HEIGHT)
+# HEIGHT = 350
+# WIDTH = int(2.1 * HEIGHT)
+
+WIDTH = 550
+HEIGHT = int(0.65*WIDTH)
 
 # Template and fonts:
 TEMPLATE = "simple_white"
@@ -92,21 +95,21 @@ GRID_SETTINGS = {
 MARGIN_DICT = dict(l=5, r=5, t=5, b=5)
 
 # Default line:
-DEFAULT_LINE_DICT = dict(
-    line_width=5,
-    line_dash="dash",
-    line_color="green",
-    opacity=0.6
-    )
+# DEFAULT_LINE_DICT = dict(
+#     line_width=5,
+#     line_dash="dash",
+#     line_color="green",
+#     opacity=0.6
+#     )
 
 # Y-axis range and ticks:
-# Y_AXIS_DICT = dict(
-#     range=[-0.5, 8.5],
-#     tick0 = 0,
-#     dtick = 2,
-# )
+Y_AXIS_DICT = dict(
+    range=[0, 20],
+    tick0 = 0,
+    dtick = 5,
+)
 
-Y_AXIS_DICT = dict()
+# Y_AXIS_DICT = dict()
 
 
 def onedim_vt_violin(df: pd.DataFrame,
@@ -189,6 +192,8 @@ def onedim_vt_violin(df: pd.DataFrame,
 
     # layout:
     fig.update_layout(
+        width=WIDTH,
+        height=HEIGHT,
         template=TEMPLATE,
         font=dict(
             size=FONT_SIZE,

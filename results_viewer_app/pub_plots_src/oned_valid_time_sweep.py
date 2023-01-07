@@ -19,11 +19,11 @@ PLOT_BASE_FOLDER_PATH = os.path.join(DIR_PATH, "..", "pub_plots_results", "oned_
 # PARAMETER TRANSFORMATIONS:
 PARAM_TRANSFORM = {
     "P node_bias_scale": r"\text{Node bias scale } \sigma_\text{b}$",
-    "P t_train": r"\text{Train size } N_\text{T}$",
+    "P t_train": r"\text{Training size } N_\text{T}$",
     "P r_dim": r"\text{Reservoir dimension } r_\text{dim}$",
     "P reg_param": r"\text{Regularization parameter } \beta$",
     "P w_in_scale": r"\text{Input strength } \sigma$",
-    "P n_avg_deg": r"\text{Average degree } d$",
+    "P n_avg_deg": r"\text{Avg. node degree } d$",
     "P n_rad": r"\text{Spectral radius } \rho_0$",
     "P dt": r"\text{Time step of system } \Delta t$",
     "P x_train_noise_scale": r"\text{Train noise scale } \sigma_\text{T}$",
@@ -33,7 +33,7 @@ PARAM_TRANSFORM = {
 # DEFAULT PARAMETERS: 
 PARAM_DEFAULTS = {
     "P node_bias_scale": 0.4,
-    "P t_train": 1000,
+    "P t_train": 2000,
     "P r_dim": 500,
     "P reg_param": 1e-7,
     "P w_in_scale": 1.0,
@@ -43,17 +43,37 @@ PARAM_DEFAULTS = {
     "P x_train_noise_scale": 0.0,
 }
 
+# X AXIS DICT FOR PARAMETERS:
+X_AXIS_DEFAULTS = {
+    "P node_bias_scale": dict(
+        tick0=0,
+        dtick=0.2),
+    "P t_train": {},
+    "P r_dim": {},
+    "P reg_param": dict(
+        dtick=2),
+    "P w_in_scale": {},
+    "P n_avg_deg": {"dtick": 1},
+    "P n_rad": {},
+    "P dt": {},
+    "P x_train_noise_scale": {},
+}
+
 # Log x-axis for some parameters:
 LOG_X_PARAMS = [
     "P reg_param",
+    "P n_avg_deg"
 ]
 
 # If log: exponent format
 EXPONENT_FORMAT = "power"  # e, power
 
 # width and height of figure:
-HEIGHT = 350
-WIDTH = int(2.1 * HEIGHT)
+# HEIGHT = 350
+# WIDTH = int(2.1 * HEIGHT)
+
+WIDTH = 600
+HEIGHT = int(0.50*WIDTH)
 
 # Template and fonts:
 TEMPLATE = "simple_white"
@@ -91,10 +111,11 @@ DEFAULT_LINE_DICT = dict(
 
 # Y-axis range and ticks:
 Y_AXIS_DICT = dict(
-    range=[-0.5, 8.5],
+    range=[-0.5, 9.0],
     tick0 = 0,
     dtick = 2,
 )
+
 
 
 def onedim_vt(df: pd.DataFrame,
@@ -166,6 +187,8 @@ def onedim_vt(df: pd.DataFrame,
 
     # layout:
     fig.update_layout(
+        width=WIDTH,
+        height=HEIGHT,
         template=TEMPLATE,
         font=dict(
             size=FONT_SIZE,
@@ -174,8 +197,14 @@ def onedim_vt(df: pd.DataFrame,
         margin=MARGIN_DICT
     )
 
+    fig.update_xaxes()
+
     fig.update_yaxes(**GRID_SETTINGS)
     fig.update_yaxes(**Y_AXIS_DICT)
+
+    # x axis ticks:
+    X_AXIS_DICT = X_AXIS_DEFAULTS[p_name]
+    fig.update_xaxes(**X_AXIS_DICT)
 
     if save_bool:
         file_name = name + ".png"

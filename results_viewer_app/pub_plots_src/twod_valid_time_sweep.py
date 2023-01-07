@@ -5,6 +5,7 @@
 
 2. Plot them nicely. For each class of plots there will be one function.
 """
+from __future__ import annotations
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -114,7 +115,8 @@ PCANAMES = {True: "PC-transform",
 def twodim_vt(df: pd.DataFrame,
               x_param: str,
               name: str,
-              save_bool: bool = False):
+              save_bool: bool = False,
+              plot_args: dict | None = None):
     """Take the df with two parameter columns and plot the valid time vs parameter value and color.
 
     Add a vertical line for the default parameter value.
@@ -123,6 +125,7 @@ def twodim_vt(df: pd.DataFrame,
         df: Dataframe with exactly 2 P column.
         name: Output name of the file.
         save_bool: If false only save temporary image. If true save to <name>.
+        plot_args: Additional plot args.
     """
     # get parameter columns (should be only one):
     parameter_cols = [x for x in df.columns if x.startswith("P ")]
@@ -214,6 +217,9 @@ def twodim_vt(df: pd.DataFrame,
         legend=LEGENDDICT,
         showlegend=SHOWLEGEND
     )
+
+    # extras:
+    fig.update_layout(**plot_args)
 
     if save_bool:
         file_name = name + ".png"

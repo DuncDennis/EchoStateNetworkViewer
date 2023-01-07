@@ -18,10 +18,8 @@ import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
 import numpy as np
-from PIL import Image
 
 import src.streamlit_src.app_fragments.streamlit_utilities as utils
-import results_viewer_app.publication_plots as pub
 
 ### statistical functions:
 def mean(x):
@@ -341,11 +339,24 @@ if df is not None:
 
                 save_bool = st.button("SAVE PLOT", key="2d")
 
+                plot_args = {}
+                cols = st.columns(2)
+                with cols[0]:
+                    hide_xaxis_title = st.checkbox("Hide xaxis title", key="hide_x")
+                    if hide_xaxis_title:
+                        plot_args["xaxis_title"] = None
+                with cols[1]:
+                    yaxis_dtick = int(st.number_input("Y-axis Dtick", value=5, step=1))
+                    plot_args["yaxis_dtick"] = yaxis_dtick
+                # plot_args = dict(xaxis_title=None,
+                #                  yaxis_dtick=2)
+
                 st.write("**Preview**")
                 img, path = pub_twod.twodim_vt(df_plot,
                                                x_param=x_param,
                                                name=file_name,
-                                               save_bool=save_bool)
+                                               save_bool=save_bool,
+                                               plot_args=plot_args)
 
                 # Preview img:
                 st.image(img)
