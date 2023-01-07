@@ -590,6 +590,13 @@ def st_hybrid_build_args(system_name: str,
                                                  key=f"{key}__st_hybrid_build_args__idim")
 
         hybrid_build_args["input_model"] = lambda x: input_model(x)[dims]
+
+        # Scale hybrid input:
+        hybrid_build_args["scale_input_model_bool"] = st.checkbox(
+            "Standardize input model",
+            value=True,
+            key=f"{key}__st_hybrid_build_args__scale_model_input")
+
     else:
         hybrid_build_args["input_model"] = None
 
