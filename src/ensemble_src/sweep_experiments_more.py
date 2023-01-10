@@ -11,6 +11,9 @@ from typing import Callable, Any
 import numpy as np
 import pandas as pd
 
+# 10.01.2023 added for specific metric used here (max pc number).
+from sklearn.decomposition import PCA
+
 import src.esn_src.data_preprocessing as datapre
 import src.esn_src.utilities as utilities
 import src.esn_src.measures as measures
@@ -83,8 +86,29 @@ def valid_time_centered_error(y_true: np.ndarray,
                       error_threshold=error_threshold,
                       error_norm="root_of_avg_of_centered_spacedist_squared")
 
+
+def pc_max_index(more_out: dict[str, np.ndarray],
+                 reg_param: float,
+                 train_steps: int) -> int:
+    """Calcualte the maximal number of principal components used in the fit.
+
+    more_out corresponds to _, _, more_out = esn_obj.train(..., more_out_bool=True)
+    """
+    res_states = more_out["rfit"]
+    pca = PCA()
+    res_pca_states = pca.fit_transform(res_states)  # pc transform rfit states.
+    ev = np.var(res_pca_states, axis=0) # explained variance
+    cutoff_ev = reg_param/train_steps
+    factor = ev/(ev + cutoff_ev)
+    return np.argmin(np.abs(factor - 0.5)) + 1
+
+
 DEFAULT_TRAIN_METRICS = {
     "MSE": mse
+}
+
+DEFAULT_TRAIN_MORE_METRICS = {
+    # "PCMAX": rpca_cutoff_index
 }
 
 DEFAULT_PREDICT_METRICS = {
@@ -122,10 +146,12 @@ class PredModelValidator:
         self.built_model = built_model
 
         self.train_metrics: None | dict[str, Callable] = None
+        self.train_more_metrics: None | dict[str, Callable] = None
         self.validate_metrics: None | dict[str, Callable] = None
         self.test_metrics: None | dict[str, Callable] = None
 
         self.train_metrics_results: None | dict[str, list] = None
+        self.train_more_metric_results: None | dict[str, list] = None
         self.validate_metrics_results: None | dict[str, list[list]] = None
         self.test_metrics_results: None | dict[str, list[list]] = None
 
@@ -148,11 +174,13 @@ class PredModelValidator:
         opt_train_args: None | dict[str, Any] = None,
         opt_pred_args: None | dict[str, Any] = None,
         train_metrics: None | dict[str, Callable] = None,
+        train_more_metrics: None | dict[str, Callable] = None,
         validate_metrics: None | dict[str, Callable] = None,
         test_data_list: np.ndarray | list[np.ndarray] | None = None,
         test_sync_steps: int = 0,
         test_metrics: None | dict[str, Callable] = None,
         opt_train_metrics_args: None | dict[str, dict[str, Any]] | None = None,
+        opt_train_more_metrics_args: None | dict[str, dict[str, Any]] | None = None,
         opt_validate_metrics_args: None | dict[str, dict[str, Any]] | None = None,
         opt_test_metrics_args: None | dict[str, dict[str, Any]] | None = None,
         ) -> pd.DataFrame:
@@ -208,6 +236,12 @@ class PredModelValidator:
             self.train_metrics = DEFAULT_TRAIN_METRICS
         else: # TODO: maybe check if metrics are valid?
             self.train_metrics = train_metrics
+
+        if train_more_metrics is None:
+            self.train_more_metrics = DEFAULT_TRAIN_MORE_METRICS
+        else: # TODO: maybe check if metrics are valid?
+            self.train_more_metrics = train_more_metrics
+
         if validate_metrics is None:
             self.validate_metrics = DEFAULT_PREDICT_METRICS
         else:
@@ -226,6 +260,8 @@ class PredModelValidator:
         # set optional train, validate and test metric args if they are None:
         if opt_train_metrics_args is None:
             opt_train_metrics_args = {}
+        if opt_train_more_metrics_args is None:
+            opt_train_more_metrics_args = {}
         if opt_validate_metrics_args is None:
             opt_validate_metrics_args = {}
         if opt_test_metrics_args is None:
@@ -233,6 +269,7 @@ class PredModelValidator:
 
         # Initialize the metric results:
         self.train_metrics_results = {}
+        self.train_more_metrics_results = {}
         self.validate_metrics_results = {}
         self.test_metrics_results = {}
 
@@ -242,12 +279,19 @@ class PredModelValidator:
             # TRAIN ON TRAIN SECTION.
             # TODO: maybe add time?
             # start = time.process_time()
-            train_fit, train_true = self.built_model.train(train_data,
-                                                           sync_steps=train_sync_steps,
-                                                           **opt_train_args)
-            # end = time.process_time()
+            train_out = self.built_model.train(train_data,
+                                               sync_steps=train_sync_steps,
+                                               **opt_train_args)
 
+            if len(train_out) <= 3:
+                train_fit, train_true = train_out[0], train_out[1]
 
+                if len(train_out) == 3:
+                    more_out = train_out[2]
+            else:
+                raise ValueError("Too many outputs for built_model.train")
+
+            # train metrics:
             for metric_name, metric in self.train_metrics.items():
                 if metric_name in opt_train_metrics_args:
                     opt_args = opt_train_metrics_args[metric_name]
@@ -258,6 +302,18 @@ class PredModelValidator:
                     self.train_metrics_results[metric_name].append(metric_result)
                 else:
                     self.train_metrics_results[metric_name] = [metric_result]
+
+            # train more metrics:
+            for metric_name, metric in self.train_more_metrics.items():
+                if metric_name in opt_train_more_metrics_args:
+                    opt_args = opt_train_more_metrics_args[metric_name]
+                else:
+                    opt_args = {}
+                metric_result = metric(more_out, **opt_args)  # more out instead of train_true and train_fit
+                if metric_name in self.train_more_metrics_results:
+                    self.train_more_metrics_results[metric_name].append(metric_result)
+                else:
+                    self.train_more_metrics_results[metric_name] = [metric_result]
 
             # GET ALL VALIDATION SECTIONS FOR THAT SPECIFIC TRAIN SECTION
             validate_list_for_train_section = validate_data_list_of_lists[i_train_section]
@@ -314,55 +370,88 @@ class PredModelValidator:
         """Transform the metrics dictionaries to a pandas dataframe.
         """
 
+        # Prefix for the metrics:
         train_metric_prefix = f"{METRIC_PREFIX}TRAIN "
         validate_metric_prefix = f"{METRIC_PREFIX}VALIDATE "
         test_metric_prefix = f"{METRIC_PREFIX}TEST "
 
+        # Names of the columns corresponding to the sections:
         train_section_name = f"{PART_PREFIX}train sect"
         validate_section_name = f"{PART_PREFIX}val sect"
         test_section_name = f"{PART_PREFIX}test sect"
 
-        train_df = pd.DataFrame.from_dict(self.train_metrics_results)
-        train_df.rename(mapper=lambda x: f"{train_metric_prefix}{x}",
-                        inplace=True,
-                        axis=1)
-        train_df.insert(0, column=train_section_name, value=train_df.index)
+        # list to save all dfs to merge (in the end)
+        metric_dfs_to_merge = []
 
-        validate_df = None
-        for i_train_sec in range(self.n_train_sects):
-            sub_validate_dict = {k: v[i_train_sec] for k, v in
-                                 self.validate_metrics_results.items()}
+        # train metric df:
+        if self.train_metrics_results: # check if dictionary is empty:
+            # get df from dict and replace column names:
+            train_df = pd.DataFrame.from_dict(self.train_metrics_results)
+            train_df.rename(mapper=lambda x: f"{train_metric_prefix}{x}",
+                            inplace=True,
+                            axis=1)
+            train_df.insert(0, column=train_section_name, value=train_df.index)
+            metric_dfs_to_merge.append(train_df)
 
-            sub_validate_df = pd.DataFrame.from_dict(sub_validate_dict)
-            sub_validate_df.rename(mapper=lambda x: f"{validate_metric_prefix}{x}",
-                                   inplace=True,
-                                   axis=1)
-            sub_validate_df.insert(0, column=validate_section_name, value=sub_validate_df.index)
-            sub_validate_df.insert(0, column=train_section_name, value=i_train_sec)
+        # train more metric df:
+        if self.train_more_metrics_results: # check if dictionary is empty:
+            # get df from dict and replace column names:
+            train_more_df = pd.DataFrame.from_dict(self.train_more_metrics_results)
+            train_more_df.rename(mapper=lambda x: f"{train_metric_prefix}{x}",
+                                 inplace=True,
+                                 axis=1)
+            train_more_df.insert(0, column=train_section_name, value=train_more_df.index)
+            metric_dfs_to_merge.append(train_more_df)
 
-            if validate_df is None:
-                validate_df = sub_validate_df
-            else:
-                validate_df = pd.concat([validate_df, sub_validate_df])
-        metrics_df = pd.merge(train_df, validate_df, on=train_section_name)
-
-        if self.n_test_sects is not None:
-            test_df = None
+        # create validate_df
+        if self.validate_metrics_results:
+            validate_df = None
             for i_train_sec in range(self.n_train_sects):
-                sub_test_dict = {k: v[i_train_sec] for k, v in
-                                     self.test_metrics_results.items()}
+                sub_validate_dict = {k: v[i_train_sec] for k, v in
+                                     self.validate_metrics_results.items()}
 
-                sub_test_df = pd.DataFrame.from_dict(sub_test_dict)
-                sub_test_df.rename(mapper=lambda x: f"{test_metric_prefix}{x}", inplace=True, axis=1)
-                sub_test_df.insert(0, column=test_section_name, value=sub_test_df.index)
-                sub_test_df.insert(0, column=train_section_name, value=i_train_sec)
+                sub_validate_df = pd.DataFrame.from_dict(sub_validate_dict)
+                sub_validate_df.rename(mapper=lambda x: f"{validate_metric_prefix}{x}",
+                                       inplace=True,
+                                       axis=1)
+                sub_validate_df.insert(0, column=validate_section_name, value=sub_validate_df.index)
+                sub_validate_df.insert(0, column=train_section_name, value=i_train_sec)
 
-                if test_df is None:
-                    test_df = sub_test_df
+                if validate_df is None:
+                    validate_df = sub_validate_df
                 else:
-                    test_df = pd.concat([test_df, sub_test_df])
-            metrics_df = pd.merge(metrics_df, test_df, on=train_section_name)
+                    validate_df = pd.concat([validate_df, sub_validate_df])
+            metric_dfs_to_merge.append(validate_df)
 
+        # merge validate and train df:
+        # metrics_df = pd.merge(train_df, validate_df, on=train_section_name)
+        if self.test_metrics_results:
+            # create and merge previous df with test df:
+            if self.n_test_sects is not None:
+                test_df = None
+                for i_train_sec in range(self.n_train_sects):
+                    sub_test_dict = {k: v[i_train_sec] for k, v in
+                                         self.test_metrics_results.items()}
+
+                    sub_test_df = pd.DataFrame.from_dict(sub_test_dict)
+                    sub_test_df.rename(mapper=lambda x: f"{test_metric_prefix}{x}", inplace=True, axis=1)
+                    sub_test_df.insert(0, column=test_section_name, value=sub_test_df.index)
+                    sub_test_df.insert(0, column=train_section_name, value=i_train_sec)
+
+                    if test_df is None:
+                        test_df = sub_test_df
+                    else:
+                        test_df = pd.concat([test_df, sub_test_df])
+                    metric_dfs_to_merge.append(test_df)
+                # metrics_df = pd.merge(metrics_df, test_df, on=train_section_name)
+
+        for i, df_to_merge in enumerate(metric_dfs_to_merge):
+            if i == 0:
+                metrics_df = df_to_merge
+            else:
+                metrics_df = pd.merge(metrics_df, df_to_merge, on=train_section_name)
+
+        # some more processing:
         cols = metrics_df.columns.tolist()
         cols_new = cols.copy()
 
@@ -431,11 +520,13 @@ class PredModelEnsembler:
             opt_train_args: None | dict[str, Any] = None,
             opt_pred_args: None | dict[str, Any] = None,
             train_metrics: None | dict[str, Callable] = None,
+            train_more_metrics: None | dict[str, Callable] = None,
             validate_metrics: None | dict[str, Callable] = None,
             test_data_list: np.ndarray | list[np.ndarray] | None = None,
             test_sync_steps: int = 0,
             test_metrics: None | dict[str, Callable] = None,
             opt_train_metrics_args: None | dict[str, dict[str, Any]] | None = None,
+            opt_train_more_metrics_args: None | dict[str, dict[str, Any]] | None = None,
             opt_validate_metrics_args: None | dict[str, dict[str, Any]] | None = None,
             opt_test_metrics_args: None | dict[str, dict[str, Any]] | None = None,
             ) -> pd.DataFrame:
@@ -456,11 +547,13 @@ class PredModelEnsembler:
                 opt_train_args=opt_train_args,
                 opt_pred_args=opt_pred_args,
                 train_metrics=train_metrics,
+                train_more_metrics=train_more_metrics,
                 validate_metrics=validate_metrics,
                 test_data_list=test_data_list,
                 test_sync_steps=test_sync_steps,
                 test_metrics=test_metrics,
                 opt_train_metrics_args=opt_train_metrics_args,
+                opt_train_more_metrics_args=opt_train_more_metrics_args,
                 opt_validate_metrics_args=opt_validate_metrics_args,
                 opt_test_metrics_args=opt_test_metrics_args
             )
