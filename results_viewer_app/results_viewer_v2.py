@@ -97,6 +97,7 @@ if df is not None:
                     "Data aggregation",
                     "Plot preview (sweep)",
                     "Plot preview (violin)",
+                    "PP (M vs. M scatter)",
                     "Pub plots",
                     # "Histogram"
                     ])
@@ -293,7 +294,102 @@ if df is not None:
 
         st.plotly_chart(fig)
 
+    # Scatter metric vs metric and parameter as color:
     with tabs[4]:
+        df_plot_scatter = df_use.copy()
+        parameter_cols = [x for x in df_plot_scatter.columns if x.startswith("P ")]
+        metric_cols = [x for x in df_plot_scatter.columns if x.startswith("M ")]
+
+        if len(metric_cols) >= 2:
+
+            # Choose metric for x and y:
+            cols = st.columns(2)
+            st.write("**Choose metrics for x and y axis:**")
+            with cols[0]:
+                x_metric = st.selectbox("xaxis metric", metric_cols, key="m_vs_m_x")
+                st.write(x_metric)
+            with cols[1]:
+                y_metric_choice = [y for y in metric_cols if y != x_metric]
+                y_metric = st.selectbox("yaxis metric", y_metric_choice, key="m_vs_m_y")
+
+
+
+            # choose parameter for color:
+            st.write("**Choose parameter for color:**")
+            color_param = st.selectbox("color param", parameter_cols, key="m_vs_m_color")
+            if len(parameter_cols) > 1:
+                par_cols_after_col = parameter_cols.copy()
+                par_cols_after_col.remove(color_param)
+                cols = st.columns(len(par_cols_after_col))
+                for i, p_name in enumerate(par_cols_after_col):
+                    with cols[i]:
+                        unique_for_p = df_plot_scatter[p_name].value_counts().index
+                        selected_p_val = st.selectbox(p_name,
+                                                      unique_for_p,
+                                                      key=f"m_vs_m_sel__{p_name}")
+                        df_plot_scatter = df_plot_scatter[df_plot_scatter[p_name] == selected_p_val]
+
+            # aggregate the data for the chosen metrics:
+            chosen_metrics = [x_metric, y_metric]
+            group_obj = df_plot_scatter.groupby(parameter_cols, as_index=False)
+            df_scatter_agg = group_obj[chosen_metrics].agg(stat_funcs).reset_index(inplace=False)
+
+            # choose avg mode:
+            st.write("**Choose averaging mode:**")
+            avg_mode = st.selectbox("Averaging",
+                                    ["median and quartile", "mean and std"],
+                                    key="m_vs_m_avgmode")
+            if avg_mode == "mean and std":
+                avg_str = "mean"
+                error_high_str = "std_high"
+                error_low_str = "std_low"
+            elif avg_mode == "median and quartile":
+                avg_str = "median"
+                error_high_str = "quartile_high"
+                error_low_str = "quartile_low"
+
+            # st.write(df_scatter_agg.columns.get_level_values(1).isin(["", "mean"]))
+
+            df_scatter_agg = df_scatter_agg.iloc[:, df_scatter_agg.columns.get_level_values(
+                1).isin(
+                ["",
+                 avg_str,
+                 error_high_str,
+                 error_low_str])]
+
+            df_scatter_agg.columns = df_scatter_agg.columns.map('|'.join).str.strip('|')
+
+            st.write(df_scatter_agg)
+
+            # marker_size = 3
+
+            fig = px.scatter(df_scatter_agg,
+                             x=x_metric + "|" + avg_str,
+                             y=y_metric + "|" + avg_str,
+                             color=color_param,
+                             # size=[marker_size] * df_scatter_agg.index.size,
+                             error_x=x_metric + "|" + error_high_str,
+                             error_x_minus=x_metric + "|" + error_low_str,
+                             error_y=y_metric + "|" + error_high_str,
+                             error_y_minus=y_metric + "|" + error_low_str,
+                             )
+            st.plotly_chart(fig)
+
+
+            # fig = go.Figure()
+            # fig.add_trace(
+            #     go.Scatter(x=df_plot_scatter[x_metric],
+            #                y=df_plot_scatter[y_metric],
+            #                mode="markers",
+            #                marker=dict(color=df_plot_scatter[color_param]))
+            # )
+            # st.plotly_chart(fig)
+
+        else:
+            st.write("This tab can also be used if there is a minimum of 2 Metric columns")
+
+    # Publication plots:
+    with tabs[5]:
         with st.expander("Data Frame (df_plot)"):
             st.write(df_plot)
 
