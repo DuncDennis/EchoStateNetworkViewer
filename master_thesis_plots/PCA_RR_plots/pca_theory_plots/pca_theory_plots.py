@@ -1,7 +1,7 @@
 import numpy as np
 import plotly.graph_objects as go
 
-import streamlit as st
+# import streamlit as st
 
 import src.esn_src.utilities as utilities
 from sklearn.decomposition import PCA
@@ -132,11 +132,11 @@ fig.add_trace(
     go.Scatter3d(x=R[:, 0], y=R[:, 1], z=R[:, 2],
                  mode='markers',
                  marker=dict(
-                     color="red",
+                     color="blue",
                      # size=0.9,
                      # opacity=0.7,
                      size=1.5,
-                     opacity=0.4,
+                     opacity=0.3,
                      line=dict(
                          color="black",
                          width=0.5,
@@ -180,13 +180,13 @@ fig.update_layout(
     height=height,
 )
 
-st.plotly_chart(fig)
+# st.plotly_chart(fig)
 
 
 # SAVE
 # fig.write_image("intro_expl_var_w_error.pdf", scale=3)
 file_name = f"pca_theory_3d.png"
-fig.write_image(file_name, scale=5)
+fig.write_image(file_name, scale=7)
 
 # EXPLAINED VARIANCE PLOT:
 R_pca = pca.transform(R)
@@ -200,8 +200,12 @@ fig.add_trace(
     go.Bar(x=x, y=y)
 )
 
-yaxis_title = r"$\text{Explained variance  } \lambda_i$"
-xaxis_title =  r'$\text{Principal component } \boldsymbol{p}_i$'
+# yaxis_title = r"$\text{Explained variance  } \lambda_i$"
+# yaxis_title = r"$\text{Explained variance  } \phi_i$"
+# yaxis_title = r"$\text{explained variance  } \phi_i$"
+yaxis_title = r"$\text{expl. variance  } \phi_i$"
+# xaxis_title =  r'$\text{Principal component}$'
+xaxis_title =  r'$\text{principal component } i$'
 height = 300
 width = int(1.4 * height)
 font_size = 15
@@ -227,6 +231,6 @@ fig.update_layout(
     margin=dict(l=20, r=20, t=20, b=20),
 )
 
-st.plotly_chart(fig)
+# st.plotly_chart(fig)
 file_name = f"pca_theory_barplot.png"
-fig.write_image(file_name, scale=3)
+fig.write_image(file_name, scale=5)
