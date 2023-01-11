@@ -299,7 +299,7 @@ if df is not None:
         df_plot_scatter = df_use.copy()
         parameter_cols = [x for x in df_plot_scatter.columns if x.startswith("P ")]
         metric_cols = [x for x in df_plot_scatter.columns if x.startswith("M ")]
-
+        df_scatter_agg = None
         if len(metric_cols) >= 2:
 
             # Choose metric for x and y:
@@ -348,7 +348,11 @@ if df is not None:
                 error_high_str = "quartile_high"
                 error_low_str = "quartile_low"
 
-            # st.write(df_scatter_agg.columns.get_level_values(1).isin(["", "mean"]))
+            avg_mode_rename = {
+                avg_str: "avg",
+                error_high_str: "error_high",
+                error_low_str: "error_low",
+            }
 
             df_scatter_agg = df_scatter_agg.iloc[:, df_scatter_agg.columns.get_level_values(
                 1).isin(
@@ -357,33 +361,62 @@ if df is not None:
                  error_high_str,
                  error_low_str])]
 
+            # rename columns:
             df_scatter_agg.columns = df_scatter_agg.columns.map('|'.join).str.strip('|')
+            prev_cols = df_scatter_agg.columns
+            new_cols = []
+            for x in prev_cols:
+                if str(x).endswith(avg_str):
+                    new_cols.append(str(x).replace(avg_str, avg_mode_rename[avg_str]))
+                elif str(x).endswith(error_high_str):
+                    new_cols.append(str(x).replace(error_high_str, avg_mode_rename[error_high_str]))
+                elif str(x).endswith(error_low_str):
+                    new_cols.append(str(x).replace(error_low_str, avg_mode_rename[error_low_str]))
+                else:
+                    new_cols.append(str(x))
 
+            df_scatter_agg.rename(columns=dict(zip(prev_cols, new_cols)), inplace=True)
             st.write(df_scatter_agg)
+            to_plot = df_scatter_agg.copy()
+            if st.checkbox("log color", key="m_vs_m_logcol"):
+                to_plot[color_param] = np.log(to_plot[color_param])
 
-            # marker_size = 3
-
-            fig = px.scatter(df_scatter_agg,
-                             x=x_metric + "|" + avg_str,
-                             y=y_metric + "|" + avg_str,
+            st.write("**Aggregated:**")
+            fig = px.scatter(to_plot,
+                             x=x_metric + "|" + "avg",
+                             y=y_metric + "|" + "avg",
                              color=color_param,
                              # size=[marker_size] * df_scatter_agg.index.size,
-                             error_x=x_metric + "|" + error_high_str,
-                             error_x_minus=x_metric + "|" + error_low_str,
-                             error_y=y_metric + "|" + error_high_str,
-                             error_y_minus=y_metric + "|" + error_low_str,
+                             error_x=x_metric + "|" + "error_high",
+                             error_x_minus=x_metric + "|" + "error_low",
+                             error_y=y_metric + "|" + "error_high",
+                             error_y_minus=y_metric + "|" + "error_low",
+                             color_continuous_scale="portland"
+                             )
+
+            fig.update_traces(
+                marker=dict(size=12,
+                            line=dict(width=1,
+                                      color='DarkSlateGrey')
+                            ),
+                error_x=dict(thickness=1),
+                error_y=dict(thickness=1)
+            )
+
+            # fig.update_layout(
+            #     template="simple_white"
+            # )
+
+            st.plotly_chart(fig)
+
+            st.write("**Each point:**")
+            fig = px.scatter(df_plot_scatter,
+                             x=x_metric,
+                             y=y_metric,
+                             color=color_param,
                              )
             st.plotly_chart(fig)
 
-
-            # fig = go.Figure()
-            # fig.add_trace(
-            #     go.Scatter(x=df_plot_scatter[x_metric],
-            #                y=df_plot_scatter[y_metric],
-            #                mode="markers",
-            #                marker=dict(color=df_plot_scatter[color_param]))
-            # )
-            # st.plotly_chart(fig)
 
         else:
             st.write("This tab can also be used if there is a minimum of 2 Metric columns")
@@ -399,7 +432,8 @@ if df is not None:
         pub_tabs = st.tabs([
             "1d_valid_time_sweep",
             "2d_valid_time_sweep",
-            "1d_valid_time_violin"
+            "1d_valid_time_violin",
+            "m_vs_m_scatter_plot",
         ])
 
         parameter_cols = [x for x in df_plot.columns if x.startswith("P ")]
@@ -486,3 +520,37 @@ if df is not None:
                     st.write(path)
             else:
                 st.write("**Only works if there is only one parameter column**")
+
+        # Pub plto: metric vs metric scatter plot:
+        with pub_tabs[3]:
+            # take df_scatter_agg and plot nicely:
+            if df_scatter_agg is not None:
+                import results_viewer_app.pub_plots_src.m_vs_m_scatter_plot as m_vs_m_scatter
+                save_bool = st.button("SAVE PLOT", key="m_vs_m_pubsave")
+                st.write("**Preview**")
+                cols = st.columns(2)
+                # with cols[0]:
+                auto_color_ticks = st.checkbox("auto color ticks", value=True, key="m_vs_m_autotick")
+                # with cols[1]:
+                if not auto_color_ticks:
+                    color_dtick = int(st.number_input("color dtick", value=100))
+                else:
+                    color_dtick = None
+
+
+                img, path = m_vs_m_scatter.m_vs_m_scatter_plot(df_scatter_agg,
+                                                               x_metric=x_metric,
+                                                               y_metric=y_metric,
+                                                               color_param=color_param,
+                                                               name=file_name,
+                                                               save_bool=save_bool,
+                                                               color_dtick=color_dtick)
+
+                # Preview img:
+                st.image(img)
+
+                if save_bool:
+                    st.write("**Saved to:**")
+                    st.write(path)
+            else:
+                st.write("This tab can also be used if there is a minimum of 2 Metric columns")
