@@ -20,17 +20,19 @@ PLOT_BASE_FOLDER_PATH = os.path.join(DIR_PATH, "..", "pub_plots_results", "twod_
 # PARAMETER TRANSFORMATIONS:
 PARAM_TRANSFORM = {
     "P node_bias_scale": r"\text{Node bias scale } \sigma_\text{b}$",
-    "P t_train": r"\text{Train size } N_\text{T}$",
+    "P t_train": r"\text{Training size } N_\text{T}$",
     "P r_dim": r"\text{Reservoir dimension } r_\text{dim}$",
     "P reg_param": r"\text{Regularization parameter } \beta$",
     "P w_in_scale": r"\text{Input strength } \sigma$",
-    "P n_avg_deg": r"\text{Average degree } d$",
+    "P n_avg_deg": r"\text{Avg. node degree } d$",
     "P n_rad": r"\text{Spectral radius } \rho_0$",
     "P dt": r"\text{Time step of system } \Delta t$",
     "P x_train_noise_scale": r"\text{Train noise scale } \sigma_\text{T}$",
     "P model_error_eps": r"\text{model error }\epsilon$",
     "P predictor_type": r"\text{hybrid type}$",
-    "P system": r"\text{system}$"
+    "P system": r"\text{system}$",
+    "P rr_type": r"\text{ridge regression type}$",
+    "P data_offset": r"\text{data offset } \delta$",
 }
 
 
@@ -45,8 +47,8 @@ LOG_X_PARAMS = [
 EXPONENT_FORMAT = "power"  # e, power
 
 # width and height of figure:
-HEIGHT = 350
-WIDTH = int(2.1 * HEIGHT)
+WIDTH = 600
+HEIGHT = int(0.50*WIDTH)
 
 # Template and fonts:
 TEMPLATE = "simple_white"
@@ -111,6 +113,8 @@ HYBRIDNAMES = {"no_hybrid": "only reservoir",
 # NAMES FOR PCA BOOL:
 PCANAMES = {True: "PC-transform",
             False: "no PC-transform"}
+
+
 
 def twodim_vt(df: pd.DataFrame,
               x_param: str,
