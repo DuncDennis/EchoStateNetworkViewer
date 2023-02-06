@@ -3,3 +3,6 @@
 
 # gdrive files:
 .tmp*
+
+# Images:
+*.png
