@@ -19,8 +19,8 @@ def hex_to_rgba(h, alpha):
 predicted_color = '#EF553B'  # red
 true_color = '#636EFA'  # blue
 # alpha = 0.5
-predicted_color = hex_to_rgba(predicted_color, 0.9)
-true_color = hex_to_rgba(true_color, 0.9)
+predicted_color = hex_to_rgba(predicted_color, 1.0)
+true_color = hex_to_rgba(true_color, 1.0)
 
 
 # Create data:
