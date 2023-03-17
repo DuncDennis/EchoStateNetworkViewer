@@ -4,8 +4,12 @@ from sklearn.decomposition import PCA
 import plotly.graph_objects as go
 import itertools
 import copy
+import plotly.io as pio
 import plotly.express as px
-col_pal = px.colors.qualitative.Plotly
+# Plotly col_pal:
+# col_pal = px.colors.qualitative.Plotly
+# simple_white color palett:
+col_pal = pio.templates["simple_white"].layout.colorway
 col_pal_iterator = itertools.cycle(col_pal)
 
 
@@ -13,6 +17,11 @@ import src.esn_src.esn_new_develop as esn
 import src.esn_src.simulations as sims
 import src.ensemble_src.sweep_experiments as sweep
 import src.esn_src.utilities as utilities
+
+# import plotly.io as pio
+# plotly_template = pio.templates["simple_white"]
+# print(plotly_template.layout)
+# print(plotly_template.layout.colorway)
 
 def hex_to_rgba(h, alpha):
     '''
@@ -105,17 +114,21 @@ for i_sweep, sweep_value in enumerate(sweep_values):
             res_states = more_out["r"]
             pca = PCA()
             res_pca_states = pca.fit_transform(res_states)
+            expl_var = np.var(res_pca_states, axis=0)
             # expl_var_ratio = pca.explained_variance_ratio_
-            expl_var_ratio = pca.explained_variance_
+            # expl_var_ratio = pca.explained_variance_
             if i_train == 0 and i_ens == 0:
                 # explained variances:
-                n_components = expl_var_ratio.size
-                expl_var_ratio_results = np.zeros((n_ens, n_train, n_components))
+                n_components = res_pca_states.shape[1]
+                # n_components = expl_var_ratio.size
+                expl_var_results = np.zeros((n_ens, n_train, n_components))
+
+                # expl_var_ratio_results = np.zeros((n_ens, n_train, n_components))
 
             # explained variances:
-            expl_var_ratio_results[i_ens, i_train, :] = expl_var_ratio
+            expl_var_results[i_ens, i_train, :] = expl_var
 
-    results_sweep.append(expl_var_ratio_results)
+    results_sweep.append(expl_var_results)
 
 
 # Plot creation:
@@ -132,9 +145,11 @@ fig = go.Figure()
 # yaxis_title = r"$\text{Explained Variance Ratio } \lambda_i$"
 # yaxis_title = r"$\text{Explained Variance } \lambda_i$"
 # yaxis_title = r"$\text{Expl. variance }\lambda_i$"
-yaxis_title = r"$\Large\lambda_i$"
+# yaxis_title = r"$\Large\lambda_i$"
+yaxis_title = r"$\Large\phi_i$"
 # xaxis_title =  r'$\text{Principal Component } \boldsymbol{p}_i$'
-xaxis_title =  r'$\Large \text{Principal component } \boldsymbol{p}_i$'
+# xaxis_title =  r'$\Large \text{Principal component } \boldsymbol{p}_i$'
+xaxis_title =  r'$\Large \text{principal component } i$'
 width = 650
 height = int(0.50*width)
 
@@ -204,6 +219,28 @@ for i_sweep, sweep_value in enumerate(sweep_values):
             showlegend=False
         )
     )
+
+# Horizontal line for cutooff:
+ev_cutoff = build_args["reg_param"] / ts_creation_args["t_train"]
+print("ev cutoff", ev_cutoff)
+# add hline for factor plot:
+fig.add_trace(
+    go.Scatter(x=[1, n_components + 1],
+               y=[ev_cutoff, ev_cutoff],
+               line=dict(color="black", dash="dash", width=3),
+               marker=dict(size=0),
+               showlegend=False,
+               mode="lines",
+               ),
+)
+
+fig.add_annotation(x=1, y=np.log10(ev_cutoff),
+                   text=r"$\large \phi_\text{co}$",
+                   showarrow=False,
+                   yshift=-15,
+                   xshift=100,)
+
+
 
 # Basic figure layout:
 
@@ -282,7 +319,12 @@ total_fig.update_layout(
 total_fig.update_yaxes(
     showgrid=True,
     gridwidth=1,
-    gridcolor="gray",
+    gridcolor='rgba(0,0,0,0.2)',
+)
+total_fig.update_xaxes(
+    showgrid=True,
+    gridwidth=1,
+    gridcolor='rgba(0,0,0,0.2)',
 )
 
 total_fig.write_image(f"expl_var_w_error_act_and_net_nozoom.png", scale=3)
@@ -333,10 +375,21 @@ zoom_fig.update_layout(
 #     gridwidth=1,
 #     gridcolor="gray",
 # )
+# zoom_fig.update_yaxes(
+#     showgrid=True,
+#     gridwidth=1,
+#     gridcolor="gray",
+# )
+
 zoom_fig.update_yaxes(
     showgrid=True,
     gridwidth=1,
-    gridcolor="gray",
+    gridcolor='rgba(0,0,0,0.2)',
+)
+zoom_fig.update_xaxes(
+    showgrid=True,
+    gridwidth=1,
+    gridcolor='rgba(0,0,0,0.2)',
 )
 
 zoom_fig.write_image(f"expl_var_w_error_act_and_net_zoom.png", scale=3)
