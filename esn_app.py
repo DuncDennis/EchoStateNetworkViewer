@@ -217,6 +217,9 @@ if __name__ == '__main__':
             
             **Contact:**
             DuncDennis@gmail.com
+
+            **Github:**
+            https://github.com/DuncDennis/EchoStateNetworkViewer
             """)
 
         utils.st_line()
